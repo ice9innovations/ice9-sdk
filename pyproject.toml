@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ice9"
+version = "0.0.1"
+description = "Python SDK for the ice9 image analysis API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "ice9.ai", email = "info@ice9.ai"}
+]
+keywords = ["image", "analysis", "computer-vision", "ai", "nsfw", "content-moderation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "httpx>=0.27.0",
+]
+
+[project.urls]
+Homepage = "https://ice9.ai"
+Documentation = "https://ice9.ai/docs"
+Repository = "https://github.com/ice9ai/ice9-sdk"
+Issues = "https://github.com/ice9ai/ice9-sdk/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7,<9",
+    "pytest-mock>=3.12",
+    "pytest-asyncio>=0.23,<1",
+    "respx>=0.21",
+    "pillow>=9.0",
+    "numpy>=1.20",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ice9*"]
