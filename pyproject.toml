@@ -33,8 +33,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://ice9.ai"
 Documentation = "https://ice9.ai/docs"
-Repository = "https://github.com/ice9ai/ice9-sdk"
-Issues = "https://github.com/ice9ai/ice9-sdk/issues"
+Repository = "https://github.com/ice9innovations/ice9-sdk"
+Issues = "https://github.com/ice9innovations/ice9-sdk/issues"
 
 [project.optional-dependencies]
 dev = [
