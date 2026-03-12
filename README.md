@@ -175,6 +175,62 @@ This is useful for:
 - Avoiding re-analysis of the same image
 - Building dashboards or reports from historical data
 
+## Real-time Progress Updates
+
+For real-time UIs, dashboards, or monitoring tools that need to show analysis progress as it happens, use **streaming** (recommended) or manual polling (fallback).
+
+### Streaming (Recommended)
+
+The SDK handles SSE (Server-Sent Events) connections internally and yields partial results as services complete:
+
+```python
+# Synchronous
+for result in client.analyze("photo.jpg", stream=True):
+    # result.is_complete is False until final result
+    completed = len([s for s in result.services_submitted if getattr(result, s)])
+    print(f"Progress: {completed}/{len(result.services_submitted)} services")
+
+    if result.is_complete:
+        print("Analysis complete!")
+        break
+
+# Asynchronous
+async for result in await client.analyze("photo.jpg", stream=True):
+    update_dashboard(result)  # Update UI with partial results
+    if result.is_complete:
+        break
+```
+
+**Why streaming?** It's efficient, real-time, and doesn't require you to write polling loops. The SDK manages the connection and yields results as they arrive.
+
+**Deployment note:** For web servers proxying SSE to browsers, use async workers (e.g., `gunicorn --worker-class gevent`) to handle many concurrent connections without blocking.
+
+### Manual Polling (Fallback)
+
+If streaming isn't available in your environment, use `get_status()` for manual polling:
+
+```python
+import time
+
+# Submit analysis
+result = client.analyze("photo.jpg")
+image_id = result.image_id
+
+# Or if you already have an image_id:
+while True:
+    status = client.get_status(image_id)
+    print(f"Progress: {status.get('services_completed', {})}")
+
+    if status['is_complete']:
+        # Status dict has all fields from /status endpoint
+        final_result = status
+        break
+
+    time.sleep(0.5)  # Poll every 500ms
+```
+
+**When to use polling:** Only when SSE isn't available (e.g., restrictive firewalls, legacy infrastructure). Streaming is preferred for most use cases.
+
 ## Error handling
 
 ```python

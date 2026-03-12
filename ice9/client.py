@@ -251,6 +251,80 @@ class Ice9:
                 else:
                     raise Ice9Error("Request to /results timed out") from None
 
+    def get_status(self, image_id: int) -> dict:
+        """Get current analysis status for manual polling.
+
+        This method returns the raw /status response, useful for implementing
+        custom polling loops or progress tracking. For most use cases, prefer
+        analyze(stream=True) which handles real-time updates automatically.
+
+        Args:
+            image_id: The image ID returned from a previous analyze() call.
+
+        Returns:
+            Dict with current analysis state, including:
+            - is_complete: bool indicating if analysis finished
+            - services_submitted: list of service names
+            - service_results: dict of results for completed services
+            - services_failed: dict of failed services (if any)
+            - *_complete: various completion flags for downstream services
+
+        Raises:
+            AuthError:      Invalid or missing API key.
+            RateLimitError: Rate limit hit; check retry_after on the exception.
+            Ice9Error:      Image not found or other API error.
+
+        Example:
+            # Manual polling loop (only use if streaming isn't available)
+            while True:
+                status = client.get_status(image_id)
+                print(f"Progress: {status.get('services_completed', {})}")
+                if status['is_complete']:
+                    break
+                time.sleep(0.5)
+        """
+        url = f"{self._base_url}/status/{image_id}"
+
+        for attempt in range(self._max_retries + 1):
+            try:
+                resp = self._client.get(url)
+
+                # Non-retryable errors (always raise immediately)
+                if resp.status_code == 401:
+                    raise AuthError("Invalid or deactivated API key")
+                if resp.status_code == 404:
+                    raise Ice9Error(f"Image {image_id} not found")
+
+                # Success
+                if resp.status_code == 200:
+                    return resp.json()
+
+                # Retryable errors
+                if attempt < self._max_retries and self._should_retry(None, resp):
+                    delay = self._retry_delay(attempt, resp)
+                    time.sleep(delay)
+                    continue
+
+                # Out of retries or non-retryable
+                if resp.status_code == 429:
+                    retry_after = _parse_retry_after(resp)
+                    raise RateLimitError("Rate limit exceeded on /status", retry_after=retry_after)
+
+                detail = _error_message(resp)
+                msg = f"{resp.status_code}: {detail}" if detail else f"Unexpected status {resp.status_code} from /status"
+                raise Ice9Error(msg)
+
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                if attempt < self._max_retries and self._should_retry(exc):
+                    delay = self._retry_delay(attempt)
+                    time.sleep(delay)
+                    continue
+
+                if isinstance(exc, httpx.ConnectError):
+                    raise Ice9Error(f"Could not connect to the ice9 API at {self._base_url}") from exc
+                else:
+                    raise Ice9Error("Request to /status timed out") from None
+
     def analyze(
         self,
         image: str | Path | BinaryIO,

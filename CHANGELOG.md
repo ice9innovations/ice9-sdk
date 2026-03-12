@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.4] - 2026-03-12
+
+### Added
+- `get_status(image_id)` method for manual polling of analysis progress
+  - Returns raw `/status` endpoint response with all fields preserved
+  - Useful for custom polling loops when streaming isn't available
+  - Both sync (`Ice9`) and async (`AsyncIce9`) clients support it
+
+### Changed
+- Updated documentation to emphasize streaming as primary pattern for real-time UIs
+  - Added "Real-time Progress Updates" section with streaming and polling examples
+  - Clarified when to use streaming vs polling
+  - Added deployment guidance for async workers with SSE
+
+### Context
+This release clarifies SDK usage patterns after demo UI integration revealed a communication gap. The SDK was correctly designed around streaming (SSE) for real-time progress, but the demo UI was built with polling due to incorrect assumptions about SSE blocking workers. The `get_status()` method is now available as a fallback for environments where streaming isn't feasible, but streaming remains the recommended approach.
+
 ## [0.0.3] - 2026-03-12
 
 ### Changed
