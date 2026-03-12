@@ -14,6 +14,7 @@ pip install ice9
 
 ## Quickstart
 
+**Synchronous (scripts, notebooks):**
 ```python
 from ice9 import Ice9
 
@@ -24,6 +25,17 @@ print(result.nudenet)   # content moderation
 print(result.colors)    # dominant colors
 print(result.metadata)  # EXIF and file info
 ```
+
+**Asynchronous (FastAPI, Discord bots, async web apps):**
+```python
+from ice9 import AsyncIce9
+
+async with AsyncIce9(api_key="ice9_...") as client:
+    result = await client.analyze("photo.jpg")
+    print(result.nudenet)
+```
+
+Both clients have identical APIs - just add `async`/`await` for the async version.
 
 The SDK accepts images from multiple sources:
 
@@ -55,19 +67,17 @@ client = Ice9()  # picks up ICE9_API_KEY automatically
 
 ## Async/Await
 
-For async frameworks (FastAPI, aiohttp, Discord.py), use `AsyncIce9`:
+`AsyncIce9` is a fully async client perfect for web servers and bots. It doesn't block your event loop while waiting for analysis results, so one process can handle many concurrent requests efficiently.
 
-```python
-from ice9 import AsyncIce9
-
-async with AsyncIce9() as client:
-    result = await client.analyze("photo.jpg")
-    print(result.nudenet)
-```
+**When to use async:**
+- ✅ Web servers (FastAPI, Flask with async routes, aiohttp)
+- ✅ Discord/Telegram bots
+- ✅ Any async application processing multiple images concurrently
+- ❌ Simple scripts or Jupyter notebooks (use sync `Ice9` instead)
 
 All methods have async equivalents: `await client.analyze()`, `await client.get_result()`, `await client.tiers()`, `await client.services()`.
 
-Streaming works with async generators:
+**Async streaming** for real-time progress updates:
 
 ```python
 async for result in await client.analyze("photo.jpg", stream=True):
@@ -116,8 +126,36 @@ result.colors.dominant
 result.yolo_v8.boxes
 ```
 
-Accessing a service that didn't run returns `None`. The raw API response is
-available at `result._raw` if you need fields the SDK doesn't surface directly.
+Accessing a service that didn't run returns `None`.
+
+### Serializing results
+
+For passing results to other systems (web frontends, databases, etc.), use `to_dict()`:
+
+```python
+result.to_dict()
+# {
+#   "image_id": 123,
+#   "services_submitted": ["colors", "nudenet"],
+#   "services_failed": {},
+#   "services": {
+#     "colors": {
+#       "dominant": ["#FF0000", "#00FF00"],
+#       "palette": [...]
+#     },
+#     "nudenet": {
+#       "detections": [...]
+#     }
+#   }
+# }
+```
+
+The SDK cleans up the structure:
+- Services are nested under `"services"` (prevents field name collisions with top-level metadata)
+- Redundant `"service"` and `"status"` fields are stripped
+- Service data is unwrapped (no extra `"data"` nesting)
+
+**Note:** The raw API response is available at `result._raw`, but you shouldn't need it. If you find yourself reaching for `._raw`, that's a sign the SDK isn't surfacing something it should—please [open an issue](https://github.com/ice9innovations/ice9-sdk/issues).
 
 ## Retrieving past results
 
@@ -184,13 +222,13 @@ This is cleaner than catching `PartialResultError` when you know partial results
 
 ## Timeout and retries
 
-The default timeout is 30 seconds. The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.
+The default timeout is 30 seconds, which is sufficient for most tiers (free: <1s, basic: ~8s, premium: ~13s). The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.
 
 ```python
 # Configure timeout and retries
 client = Ice9(
     api_key="ice9_...",
-    timeout=120,        # seconds to wait for analysis
+    timeout=45,         # seconds to wait for analysis (increase for batch tier)
     max_retries=3,      # number of retries (default: 3, set to 0 to disable)
 )
 
@@ -283,3 +321,13 @@ Integration tests (requires `ICE9_API_KEY`):
 export ICE9_API_KEY=ice9_...
 pytest tests/integration/ -v
 ```
+
+## Support
+
+**Issues and feature requests:** [GitHub Issues](https://github.com/ice9innovations/ice9-sdk/issues)
+
+**Documentation:** [ice9.ai/docs](https://ice9.ai/docs)
+
+**Questions or feedback:** Visit [ice9.ai](https://ice9.ai) for contact information.
+
+We're actively maintaining this SDK and respond to issues promptly. If something isn't working as expected or you'd like to see a feature added, please let us know.

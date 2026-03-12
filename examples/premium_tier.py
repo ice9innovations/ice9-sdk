@@ -10,7 +10,8 @@ More models means more votes in the noun consensus, which means higher
 confidence in the validated nouns. The cloud models also tend to produce
 richer, more accurate descriptions than the local models.
 
-Allow up to 3 minutes — cloud API calls add latency on top of the local VLMs.
+Runs more services than basic tier (15 vs 10). Current benchmarks show
+13-16 seconds but expect this to increase with more usage and load.
 
 Usage:
     ICE9_API_KEY=... python examples/premium_tier.py <image_path>
@@ -21,7 +22,7 @@ import sys
 from ice9 import Ice9, CENSOR_LABELS
 from ice9.exceptions import AnalysisTimeoutError, PartialResultError
 
-TIMEOUT = 180.0
+TIMEOUT = 60.0  # premium runs more services than basic, allow extra time
 
 # The cloud models that premium adds on top of basic
 CLOUD_MODELS = ("gemini", "gpt_nano", "haiku")

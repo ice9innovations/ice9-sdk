@@ -2,8 +2,8 @@
 Submit an image to the basic tier and print the results.
 
 The basic tier runs several AI models on your image and combines their
-outputs into a summary. It takes longer than the free tier — up to 2 minutes
-— because it waits for all the models to finish before producing a result.
+outputs into a summary. It typically completes in 8-10 seconds (P50: 7.6s,
+P95: 34s) and waits for all the models to finish before producing a result.
 
 What you get back:
   - A summary caption describing the image
@@ -21,7 +21,7 @@ import sys
 from ice9 import Ice9
 from ice9.exceptions import AnalysisTimeoutError, PartialResultError
 
-TIMEOUT = 120.0  # seconds — the pipeline can take a while
+TIMEOUT = 45.0  # basic tier typically completes in 8-10s, 45s allows for slow images
 
 
 def main(image_path):

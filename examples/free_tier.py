@@ -9,7 +9,7 @@ The free tier runs a fixed set of fast services on your image:
   - ocr:              any text found in the image
   - qr:               any QR codes or barcodes found in the image
 
-Results are usually ready in a few seconds.
+Results are usually ready in under a second (P50: 0.5s, P90: 5.6s).
 
 Usage:
     ICE9_API_KEY=... python examples/free_tier.py <image_path>

@@ -1,4 +1,5 @@
 from .client import Ice9
+from .async_client import AsyncIce9
 from .models import AnalysisResult, ServiceResult
 from .censor import CENSOR_LABELS
 from .exceptions import (
@@ -10,10 +11,11 @@ from .exceptions import (
     PartialResultError,
 )
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 __all__ = [
     "Ice9",
+    "AsyncIce9",
     "AnalysisResult",
     "ServiceResult",
     "CENSOR_LABELS",
@@ -24,10 +26,3 @@ __all__ = [
     "AnalysisTimeoutError",
     "PartialResultError",
 ]
-
-# Async client is imported on-demand to avoid requiring httpx for sync usage
-def __getattr__(name):
-    if name == "AsyncIce9":
-        from .async_client import AsyncIce9
-        return AsyncIce9
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
