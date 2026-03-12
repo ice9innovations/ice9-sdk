@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Internal docs (not for public repo)
+DESIGN.md
+PUBLISHING.md
+context.txt
+images/
+issues/
+test_results.txt
