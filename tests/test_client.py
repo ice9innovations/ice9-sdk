@@ -380,6 +380,41 @@ def test_partial_result_contains_succeeded_services(png_file, respx_mock):
         assert result.ocr is None
 
 
+def test_raise_on_partial_false_returns_result_instead_of_raising(png_file, respx_mock):
+    import copy
+    partial_status = copy.deepcopy(STATUS_COMPLETE)
+    partial_status["services_failed"] = {"nudenet": "worker crashed"}
+    partial_status["service_results"].pop("nudenet")
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+
+    # Should not raise — just return the result with services_failed populated
+    result = make_client().analyze(png_file, raise_on_partial=False)
+
+    assert result.image_id == 42
+    assert result.services_failed == {"nudenet": "worker crashed"}
+    assert result.nudenet is None
+    assert result.colors is not None
+
+
+def test_raise_on_partial_false_logs_warning(png_file, respx_mock, caplog):
+    import copy
+    import logging
+    partial_status = copy.deepcopy(STATUS_COMPLETE)
+    partial_status["services_failed"] = {"yolo": "timeout"}
+    partial_status["service_results"].pop("yolo", None)
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+
+    with caplog.at_level(logging.WARNING, logger="ice9"):
+        result = make_client().analyze(png_file, raise_on_partial=False)
+
+    assert "failed services" in caplog.text.lower()
+    assert "yolo" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # analyze(stream=True)
 
@@ -539,3 +574,58 @@ def test_stream_404_raises_ice9_error(png_file, respx_mock):
 
     with pytest.raises(Ice9Error, match="not found"):
         list(make_client().analyze(png_file, stream=True))
+
+
+def test_stream_with_failed_services_raises_partial_result_error(png_file, respx_mock):
+    import copy
+    partial_complete = copy.deepcopy(_STREAM_COMPLETE_PAYLOAD)
+    partial_complete["services_failed"] = {"yolo": "worker crashed"}
+    partial_complete["service_results"].pop("yolo", None)
+
+    sse_body = _make_sse_body(
+        ("service_complete", {"service": "nudenet", "result": {"detections": []}}),
+        ("complete", partial_complete),
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(
+            200,
+            content=sse_body,
+            headers={"Content-Type": "text/event-stream"},
+        )
+    )
+
+    with pytest.raises(PartialResultError) as exc_info:
+        list(make_client().analyze(png_file, stream=True))
+
+    assert exc_info.value.result.services_failed == {"yolo": "worker crashed"}
+
+
+def test_stream_raise_on_partial_false_returns_result(png_file, respx_mock):
+    import copy
+    partial_complete = copy.deepcopy(_STREAM_COMPLETE_PAYLOAD)
+    partial_complete["services_failed"] = {"ocr": "timeout"}
+    partial_complete["service_results"].pop("ocr", None)
+
+    sse_body = _make_sse_body(
+        ("service_complete", {"service": "nudenet", "result": {"detections": []}}),
+        ("complete", partial_complete),
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(
+            200,
+            content=sse_body,
+            headers={"Content-Type": "text/event-stream"},
+        )
+    )
+
+    # Should not raise — just yield the result with services_failed populated
+    results = list(make_client().analyze(png_file, stream=True, raise_on_partial=False))
+    final = results[-1]
+
+    assert final.is_complete is True
+    assert final.services_failed == {"ocr": "timeout"}
+    assert final.nudenet is not None

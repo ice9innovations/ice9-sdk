@@ -164,6 +164,24 @@ except Ice9Error as e:
 `PartialResultError` carries the partial result on `.result` so you can decide
 whether what succeeded is enough for your use case.
 
+### Handling partial results without exceptions
+
+If partial results are acceptable for your use case (e.g., you only need nudenet and other services are optional), use `raise_on_partial=False`:
+
+```python
+# Returns result with services_failed populated, logs a warning instead of raising
+result = client.analyze("photo.jpg", raise_on_partial=False)
+
+if result.services_failed:
+    print(f"Warning: some services failed: {result.services_failed}")
+
+# Use the partial result
+if result.nudenet:
+    print("Nudenet succeeded:", result.nudenet.detections)
+```
+
+This is cleaner than catching `PartialResultError` when you know partial results are acceptable.
+
 ## Timeout and retries
 
 The default timeout is 30 seconds. The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.

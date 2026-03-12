@@ -261,22 +261,26 @@ class AsyncIce9:
         image_group: str = "api",
         timeout: float | None = None,
         stream: bool = False,
+        raise_on_partial: bool = True,
     ):
         """Submit an image for analysis and return results.
 
         Args:
-            image:        Path to an image file (str or Path), or an open binary
-                          file object.
-            tier:         Processing tier. If omitted, the server applies the
-                          default for your API key. Use client.tiers() to see
-                          what is available.
-            image_group:  Tag for grouping images server-side. Defaults to 'api'.
-            timeout:      Maximum seconds to wait for completion. Defaults to the
-                          client's default_timeout.
-            stream:       If True, return an async generator that yields a partial
-                          AnalysisResult each time a service completes, followed
-                          by the final complete result. If False (default), block
-                          until all services are done and return the full result.
+            image:            Path to an image file (str or Path), or an open binary
+                              file object.
+            tier:             Processing tier. If omitted, the server applies the
+                              default for your API key. Use client.tiers() to see
+                              what is available.
+            image_group:      Tag for grouping images server-side. Defaults to 'api'.
+            timeout:          Maximum seconds to wait for completion. Defaults to the
+                              client's default_timeout.
+            stream:           If True, return an async generator that yields a partial
+                              AnalysisResult each time a service completes, followed
+                              by the final complete result. If False (default), block
+                              until all services are done and return the full result.
+            raise_on_partial: If True (default), raise PartialResultError when some
+                              services fail. If False, return the result with
+                              services_failed populated and log a warning.
 
         Returns:
             AnalysisResult (blocking) or async generator of AnalysisResult (streaming).
@@ -288,8 +292,9 @@ class AsyncIce9:
             ImageRejectedError:   Server rejected the image or unknown tier.
             RateLimitError:       Rate limit hit; check retry_after on the exception.
             AnalysisTimeoutError: Analysis did not complete within the timeout.
-            PartialResultError:   Completed but some services failed; result is on
-                                  the exception's .result attribute.
+            PartialResultError:   Completed but some services failed (only when
+                                  raise_on_partial=True); result is on the
+                                  exception's .result attribute.
             Ice9Error:            Any other API error.
         """
         effective_timeout = timeout if timeout is not None else self._default_timeout
@@ -298,17 +303,23 @@ class AsyncIce9:
         image_id = await self._upload(image, tier, image_group)
 
         if stream:
-            return self._stream(image_id, deadline)
+            return self._stream(image_id, deadline, raise_on_partial)
 
         status = await self._poll(image_id, deadline)
         result = AnalysisResult._from_status(status)
 
         if result.services_failed:
-            raise PartialResultError(
-                f"Analysis completed with failed services: "
-                f"{list(result.services_failed.keys())}",
-                result=result,
-            )
+            if raise_on_partial:
+                raise PartialResultError(
+                    f"Analysis completed with failed services: "
+                    f"{list(result.services_failed.keys())}",
+                    result=result,
+                )
+            else:
+                logger.warning(
+                    f"Analysis completed with failed services: "
+                    f"{list(result.services_failed.keys())}"
+                )
 
         return result
 
@@ -477,7 +488,7 @@ class AsyncIce9:
             msg = f"{resp.status_code}: {detail}" if detail else f"Unexpected status {resp.status_code} from /status"
             raise Ice9Error(msg)
 
-    async def _stream(self, image_id: int, deadline: float) -> AsyncIterator[AnalysisResult]:
+    async def _stream(self, image_id: int, deadline: float, raise_on_partial: bool = True) -> AsyncIterator[AnalysisResult]:
         url = f"{self._base_url}/stream/{image_id}"
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -523,11 +534,17 @@ class AsyncIce9:
                                 elif current_event == "complete":
                                     final = AnalysisResult._from_status(payload)
                                     if final.services_failed:
-                                        raise PartialResultError(
-                                            f"Analysis completed with failed services: "
-                                            f"{list(final.services_failed.keys())}",
-                                            result=final,
-                                        )
+                                        if raise_on_partial:
+                                            raise PartialResultError(
+                                                f"Analysis completed with failed services: "
+                                                f"{list(final.services_failed.keys())}",
+                                                result=final,
+                                            )
+                                        else:
+                                            logger.warning(
+                                                f"Analysis completed with failed services: "
+                                                f"{list(final.services_failed.keys())}"
+                                            )
                                     yield final
                                     return
                                 elif current_event == "timeout":

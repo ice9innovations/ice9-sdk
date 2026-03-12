@@ -393,6 +393,43 @@ async def test_partial_failure_raises_partial_result_error(respx_mock, png_file)
     assert exc_info.value.result.colors is not None
 
 
+async def test_raise_on_partial_false_returns_result_instead_of_raising(respx_mock, png_file):
+    import copy
+    partial_status = copy.deepcopy(STATUS_COMPLETE)
+    partial_status["services_failed"] = {"nudenet": "worker crashed"}
+    partial_status["service_results"].pop("nudenet")
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+
+    async with make_client() as client:
+        # Should not raise — just return the result with services_failed populated
+        result = await client.analyze(png_file, raise_on_partial=False)
+
+    assert result.image_id == 42
+    assert result.services_failed == {"nudenet": "worker crashed"}
+    assert result.nudenet is None
+    assert result.colors is not None
+
+
+async def test_raise_on_partial_false_logs_warning(respx_mock, png_file, caplog):
+    import copy
+    import logging
+    partial_status = copy.deepcopy(STATUS_COMPLETE)
+    partial_status["services_failed"] = {"yolo": "timeout"}
+    partial_status["service_results"].pop("yolo", None)
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+
+    with caplog.at_level(logging.WARNING, logger="ice9"):
+        async with make_client() as client:
+            result = await client.analyze(png_file, raise_on_partial=False)
+
+    assert "failed services" in caplog.text.lower()
+    assert "yolo" in caplog.text
+
+
 # ---------------------------------------------------------------------------
 # analyze(stream=True)
 # Note: Full streaming tests are complex with httpx mocking.
