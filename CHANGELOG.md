@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.6] - 2026-03-13
+
+### Fixed
+- Services returned in the `postprocessing` array now surface correctly via attribute access
+  - Previously: `result.face`, `result.pose`, `result.caption_score_blip`, etc. all returned `None`
+  - Now: injected into `service_results` alongside primary services at result build time
+  - Multiple entries for the same service (e.g. one face cluster per detected person) are aggregated — predictions are merged into a single list
+  - Does not overwrite existing `service_results` entries (primary service always wins)
+
 ## [0.0.5] - 2026-03-12
 
 ### Fixed

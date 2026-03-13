@@ -191,6 +191,40 @@ class AnalysisResult:
             for name, entry in raw_service_results.items()
         }
 
+        # Inject postprocessing entries that aren't already in service_results.
+        # Postprocessing entries share the same shape as service_results entries
+        # but arrive in a flat list keyed by a "service" field. Multiple entries
+        # for the same service name (e.g. one face entry per detected cluster)
+        # are aggregated by merging their predictions lists.
+        postprocessing = data.get('postprocessing') or []
+        if postprocessing:
+            pp_groups: dict[str, list[dict]] = {}
+            for entry in postprocessing:
+                name = entry.get('service')
+                if name:
+                    pp_groups.setdefault(name, []).append(entry)
+
+            for name, entries in pp_groups.items():
+                if name in service_results:
+                    continue  # don't overwrite existing service_results
+
+                if len(entries) == 1:
+                    entry = entries[0]
+                    entry_data = entry.get('data') if 'data' in entry else entry
+                    service_results[name] = ServiceResult(
+                        data=entry_data,
+                        processing_time=entry.get('processing_time'),
+                    )
+                else:
+                    # Aggregate predictions from all entries for this service
+                    all_predictions = []
+                    for entry in entries:
+                        entry_data = entry.get('data') if 'data' in entry else entry
+                        all_predictions.extend(entry_data.get('predictions') or [])
+                    service_results[name] = ServiceResult(
+                        data={'predictions': all_predictions},
+                    )
+
         return cls(
             image_id=data['image_id'],
             services_submitted=data.get('services_submitted') or [],
