@@ -91,7 +91,14 @@ STATUS_COMPLETE = {
     "verb_consensus": None,
     "sam3": None,
     "caption_summary": None,
-    "rembg": None,
+    "rembg": {
+        "model": "birefnet-general",
+        "png_b64": "aGVsbG8=",
+        "premasked": False,
+        "processing_time": 1.2,
+        "shape": [512, 512],
+        "updated_at": "2026-03-08T12:00:02",
+    },
     "service_dispatch": [],
     "consensus_complete": False,
     "content_analysis_complete": False,
@@ -155,6 +162,38 @@ STATUS_COMPLETE_BASIC = {
             "updated_at": "2026-03-08T12:00:06",
         },
     },
+    "postprocessing": [
+        {
+            "service": "caption_score_moondream",
+            "data": {
+                "caption_score": {
+                    "service": "moondream",
+                    "caption": "a dog sitting on a wooden floor",
+                    "similarity_score": 0.831,
+                    "scored_at": "2026-03-08T12:00:07",
+                },
+                "processing_algorithm": "clip_similarity_v1",
+                "processed_at": "2026-03-08T12:00:07",
+            },
+            "status": "success",
+            "processing_time": 0.05,
+        },
+        {
+            "service": "caption_score_qwen",
+            "data": {
+                "caption_score": {
+                    "service": "qwen",
+                    "caption": "a brown dog on a hardwood floor",
+                    "similarity_score": 0.847,
+                    "scored_at": "2026-03-08T12:00:07",
+                },
+                "processing_algorithm": "clip_similarity_v1",
+                "processed_at": "2026-03-08T12:00:07",
+            },
+            "status": "success",
+            "processing_time": 0.05,
+        },
+    ],
 }
 
 TIERS_RESPONSE = {

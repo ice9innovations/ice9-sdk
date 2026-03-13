@@ -255,6 +255,63 @@ def test_vlm_text_property_on_basic_result():
     assert result.moondream.text == "a dog sitting on a wooden floor"
 
 
+# ---------------------------------------------------------------------------
+# rembg injection from top-level key
+
+def test_rembg_injected_from_top_level():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.rembg is not None
+
+
+def test_rembg_data_accessible():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.rembg.png_b64 == "aGVsbG8="
+    assert result.rembg.shape == [512, 512]
+    assert result.rembg.model is not None
+
+
+def test_rembg_absent_when_null():
+    import copy
+    data = copy.deepcopy(STATUS_COMPLETE)
+    data["rembg"] = None
+    result = AnalysisResult._from_status(data)
+    assert result.rembg is None
+
+
+# ---------------------------------------------------------------------------
+# caption_scores aggregation from postprocessing
+
+def test_caption_scores_aggregated_from_postprocessing():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    assert result.caption_scores is not None
+
+
+def test_caption_scores_contains_model_scores():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    scores = result.caption_scores
+    assert scores.moondream == pytest.approx(0.831)
+    assert scores.qwen == pytest.approx(0.847)
+
+
+def test_caption_score_entries_not_exposed_individually():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    assert result.caption_score_moondream is None
+    assert result.caption_score_qwen is None
+
+
+def test_caption_scores_in_to_dict():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    d = result.to_dict()
+    assert "caption_scores" in d["services"]
+    assert d["services"]["caption_scores"]["moondream"] == pytest.approx(0.831)
+
+
+def test_caption_scores_absent_when_no_postprocessing():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)  # no postprocessing
+    assert result.caption_scores is None
+
+
+# ---------------------------------------------------------------------------
 def test_to_dict_does_not_include_internal_api_fields():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     d = result.to_dict()

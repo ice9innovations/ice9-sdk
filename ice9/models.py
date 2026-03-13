@@ -191,6 +191,17 @@ class AnalysisResult:
             for name, entry in raw_service_results.items()
         }
 
+        # Inject top-level service keys that arrive outside service_results.
+        # Currently: rembg (background removal matte). These keys are present
+        # when the service ran and will be None otherwise — skip None values.
+        for top_level_key in ('rembg',):
+            if top_level_key not in service_results and data.get(top_level_key):
+                entry = data[top_level_key]
+                service_results[top_level_key] = ServiceResult(
+                    data=entry,
+                    processing_time=entry.get('processing_time'),
+                )
+
         # Inject postprocessing entries that aren't already in service_results.
         # Postprocessing entries share the same shape as service_results entries
         # but arrive in a flat list keyed by a "service" field. Multiple entries
@@ -198,11 +209,26 @@ class AnalysisResult:
         # are aggregated by merging their predictions lists.
         postprocessing = data.get('postprocessing') or []
         if postprocessing:
+            # caption_score_* entries are aggregated into a single caption_scores
+            # ServiceResult: {"blip": 0.847, "moondream": 0.831, ...}
+            caption_scores: dict[str, float] = {}
             pp_groups: dict[str, list[dict]] = {}
+
             for entry in postprocessing:
                 name = entry.get('service')
-                if name:
+                if not name:
+                    continue
+                if name.startswith('caption_score_'):
+                    model = name[len('caption_score_'):]
+                    entry_data = entry.get('data') if 'data' in entry else entry
+                    score = (entry_data.get('caption_score') or {}).get('similarity_score')
+                    if score is not None:
+                        caption_scores[model] = score
+                else:
                     pp_groups.setdefault(name, []).append(entry)
+
+            if caption_scores and 'caption_scores' not in service_results:
+                service_results['caption_scores'] = ServiceResult(data=caption_scores)
 
             for name, entries in pp_groups.items():
                 if name in service_results:

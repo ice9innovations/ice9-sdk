@@ -8,9 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.0.6] - 2026-03-13
 
+### Added
+- `result.rembg` — background removal matte, injected from top-level API response
+  - Fields: `png_b64` (base64 grayscale PNG), `shape` ([height, width]), `model`, `premasked`
+  - `result.rembg` is `None` when the service did not run
+- `result.caption_scores` — aggregated CLIP similarity scores for all VLM captions
+  - Scores arrive as individual `caption_score_*` entries in the `postprocessing` array
+  - SDK aggregates them into a single `ServiceResult`: `result.caption_scores.blip`, `result.caption_scores.moondream`, etc.
+  - Individual `caption_score_*` entries are not exposed directly
+  - `result.caption_scores` is `None` when no caption scores are present (e.g. free tier)
+- `grounding_validated` flag on noun consensus entries
+  - Each noun in `result.noun_consensus.nouns` now includes `grounding_validated: bool`
+  - Set by the windmill pipeline when a grounding service confirms the noun with a bounding box
+  - SDK passes the field through from the API response
+
 ### Fixed
 - Services returned in the `postprocessing` array now surface correctly via attribute access
-  - Previously: `result.face`, `result.pose`, `result.caption_score_blip`, etc. all returned `None`
+  - Previously: `result.face`, `result.pose`, `result.caption_score_*`, etc. all returned `None`
   - Now: injected into `service_results` alongside primary services at result build time
   - Multiple entries for the same service (e.g. one face cluster per detected person) are aggregated — predictions are merged into a single list
   - Does not overwrite existing `service_results` entries (primary service always wins)
