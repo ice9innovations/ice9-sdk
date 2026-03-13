@@ -64,7 +64,12 @@ class Ice9:
         self._max_retries = max_retries
         self._client = httpx.Client(
             headers={"X-API-Key": self._api_key},
-            timeout=httpx.Timeout(10.0),
+            timeout=httpx.Timeout(
+                connect=10.0,   # fail fast if API is unreachable
+                read=timeout,   # respect user timeout for response reading
+                write=timeout,  # respect user timeout for large uploads
+                pool=5.0,
+            ),
         )
 
     def _should_retry(self, exc: Exception, resp: httpx.Response | None = None) -> bool:

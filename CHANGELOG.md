@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.5] - 2026-03-12
+
+### Fixed
+- httpx client now respects user-provided timeout for uploads and reads
+  - Previously: hardcoded 10s timeout caused large file uploads to fail regardless of configured timeout
+  - Now: connect timeout stays 10s (fail fast if unreachable), read/write timeouts use the configured value
+  - Affects both `Ice9` and `AsyncIce9`
+- Streaming timeout is now a true inactivity timeout, not a wall-clock limit
+  - Previously: deadline was set before upload, so slow uploads reduced streaming time
+  - Now: timeout resets each time any data is received from the stream
+  - An active stream producing results will never be cut off by elapsed time
+  - Timeout only fires if no data arrives for the configured duration
+  - Error message now distinguishes stream stall from analysis timeout
+
 ## [0.0.4] - 2026-03-12
 
 ### Added

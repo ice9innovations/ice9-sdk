@@ -67,7 +67,12 @@ class AsyncIce9:
     async def __aenter__(self):
         self._client = httpx.AsyncClient(
             headers={"X-API-Key": self._api_key},
-            timeout=httpx.Timeout(10.0),
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=self._default_timeout,
+                write=self._default_timeout,
+                pool=5.0,
+            ),
         )
         return self
 
@@ -81,7 +86,12 @@ class AsyncIce9:
             # Auto-create if not using context manager
             self._client = httpx.AsyncClient(
                 headers={"X-API-Key": self._api_key},
-                timeout=httpx.Timeout(10.0),
+                timeout=httpx.Timeout(
+                    connect=10.0,
+                    read=self._default_timeout,
+                    write=self._default_timeout,
+                    pool=5.0,
+                ),
             )
         return self._client
 
@@ -343,8 +353,15 @@ class AsyncIce9:
                               default for your API key. Use client.tiers() to see
                               what is available.
             image_group:      Tag for grouping images server-side. Defaults to 'api'.
-            timeout:          Maximum seconds to wait for completion. Defaults to the
-                              client's default_timeout.
+            timeout:          Timeout in seconds. Defaults to the client's
+                              default_timeout. Behavior differs by mode:
+                              - Non-streaming: wall-clock deadline from the start
+                                of analyze() (includes upload time).
+                              - Streaming: inactivity timeout — resets each time
+                                any data is received. An active stream that is
+                                producing results will never be cut off regardless
+                                of total elapsed time. Fires only if no data
+                                arrives for this many seconds.
             stream:           If True, return an async generator that yields a partial
                               AnalysisResult each time a service completes, followed
                               by the final complete result. If False (default), block
@@ -374,7 +391,7 @@ class AsyncIce9:
         image_id = await self._upload(image, tier, image_group)
 
         if stream:
-            return self._stream(image_id, deadline, raise_on_partial)
+            return self._stream(image_id, effective_timeout, raise_on_partial)
 
         status = await self._poll(image_id, deadline)
         result = AnalysisResult._from_status(status)
@@ -559,14 +576,17 @@ class AsyncIce9:
             msg = f"{resp.status_code}: {detail}" if detail else f"Unexpected status {resp.status_code} from /status"
             raise Ice9Error(msg)
 
-    async def _stream(self, image_id: int, deadline: float, raise_on_partial: bool = True) -> AsyncIterator[AnalysisResult]:
-        url = f"{self._base_url}/stream/{image_id}"
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise AnalysisTimeoutError(
-                f"Analysis of image {image_id} did not complete within the timeout"
-            )
+    async def _stream(self, image_id: int, inactivity_timeout: float, raise_on_partial: bool = True) -> AsyncIterator[AnalysisResult]:
+        """Stream analysis results using SSE.
 
+        Uses a true inactivity timeout: the clock resets each time any data is
+        received. A stream that is actively sending events will never be cut off
+        regardless of total elapsed time. The timeout only fires if no data
+        arrives for inactivity_timeout seconds.
+        """
+        import asyncio
+
+        url = f"{self._base_url}/stream/{image_id}"
         client = self._get_client()
 
         try:
@@ -574,7 +594,7 @@ class AsyncIce9:
                 "GET",
                 url,
                 headers={"Accept": "text/event-stream"},
-                timeout=httpx.Timeout(10, read=remaining + 10),  # +10s headroom
+                timeout=httpx.Timeout(10, read=inactivity_timeout + 10),  # backstop
             ) as resp:
                 if resp.status_code == 401:
                     raise AuthError("Invalid or deactivated API key")
@@ -589,7 +609,21 @@ class AsyncIce9:
                 current_event = None
                 current_data = None
 
-                async for line in resp.aiter_lines():
+                aiter = resp.aiter_lines()
+                while True:
+                    try:
+                        line = await asyncio.wait_for(
+                            aiter.__anext__(),
+                            timeout=inactivity_timeout,
+                        )
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        raise AnalysisTimeoutError(
+                            f"Stream for image {image_id} stalled — "
+                            f"no data received for {inactivity_timeout:.0f}s"
+                        ) from None
+
                     if line == "":
                         # Blank line — dispatch the buffered event
                         if current_event and current_data is not None:
