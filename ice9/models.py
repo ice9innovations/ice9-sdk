@@ -3,9 +3,6 @@ from __future__ import annotations
 import json
 import warnings
 
-# Fields copied from the raw API response into to_dict() output.
-_RESULT_META_FIELDS = ("image_filename", "image_group", "image_created")
-
 # Fields stripped from service data before serialisation — pipeline bookkeeping
 # that is already captured at the top level or is not meaningful to callers.
 _SERVICE_STRIP_FIELDS = frozenset({"service", "status"})
@@ -88,6 +85,8 @@ class AnalysisResult:
 
     Attributes:
         image_id:           Numeric ID assigned by the API.
+        image_filename:     Original filename of the uploaded image, if available.
+        image_created:      ISO 8601 timestamp when the image record was created.
         services_submitted: List of service names that were run.
         services_failed:    Dict of service -> failure reason. Empty = full success.
     """
@@ -100,8 +99,12 @@ class AnalysisResult:
         service_results: dict[str, "ServiceResult"],
         _raw: dict,
         is_complete: bool = True,
+        image_filename: str | None = None,
+        image_created: str | None = None,
     ):
         self.image_id = image_id
+        self.image_filename = image_filename
+        self.image_created = image_created
         self.services_submitted = services_submitted
         self.services_failed = services_failed
         self.is_complete = is_complete
@@ -125,21 +128,18 @@ class AnalysisResult:
         ``status``) are stripped from each service's data — that information
         is already present at the top level via ``services_submitted`` and
         ``services_failed``.
-
-        The raw API response is available at ``._raw`` if you need fields
-        that this method omits.
         """
         service_results = object.__getattribute__(self, '_service_results')
-        raw = object.__getattribute__(self, '_raw')
 
         out: dict = {
             "image_id":           self.image_id,
             "services_submitted": self.services_submitted,
             "services_failed":    self.services_failed,
         }
-        for field in _RESULT_META_FIELDS:
-            if field in raw:
-                out[field] = raw[field]
+        if self.image_filename is not None:
+            out["image_filename"] = self.image_filename
+        if self.image_created is not None:
+            out["image_created"] = self.image_created
 
         out["services"] = {
             name: {k: v for k, v in object.__getattribute__(sr, '_data').items()
@@ -253,6 +253,8 @@ class AnalysisResult:
 
         return cls(
             image_id=data['image_id'],
+            image_filename=data.get('image_filename'),
+            image_created=data.get('image_created'),
             services_submitted=data.get('services_submitted') or [],
             services_failed=services_failed,
             service_results=service_results,
@@ -274,6 +276,19 @@ class AnalysisResult:
             )
             for name, entry in accumulated.items()
         }
+
+        # Aggregate any caption_score_* entries that have arrived so far.
+        caption_scores: dict[str, float] = {}
+        for name, entry in accumulated.items():
+            if name.startswith('caption_score_'):
+                model = name[len('caption_score_'):]
+                entry_data = entry.get('data') if 'data' in entry else entry
+                score = (entry_data.get('caption_score') or {}).get('similarity_score')
+                if score is not None:
+                    caption_scores[model] = score
+        if caption_scores:
+            service_results['caption_scores'] = ServiceResult(data=caption_scores)
+
         return cls(
             image_id=image_id,
             services_submitted=list(accumulated.keys()),

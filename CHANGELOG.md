@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.7] - 2026-03-13
+
+### Added
+- `result.image_filename` — original filename of the uploaded image, as a first-class attribute
+- `result.image_created` — ISO 8601 timestamp when the image record was created, as a first-class attribute
+  - Both fields are `None` for partial streaming results (not available until the `complete` event)
+- `caption_scores` aggregation now works in streaming mode
+  - Partial `AnalysisResult` objects yielded during SSE streaming now include `result.caption_scores`
+    as individual `caption_score_*` events arrive, consistent with the final polled result
+
+### Changed
+- `image_group` removed from `to_dict()` output — internal batching field, not user-facing
+  - Still accessible via `result._raw["image_group"]` for anything that needs it
+
 ## [0.0.6] - 2026-03-13
 
 ### Added

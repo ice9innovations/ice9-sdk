@@ -179,8 +179,20 @@ def test_to_dict_includes_image_meta():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     d = result.to_dict()
     assert d["image_filename"] == "test.png"
-    assert d["image_group"] == "api"
     assert "image_created" in d
+    assert "image_group" not in d
+
+
+def test_image_meta_as_attributes():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.image_filename == "test.png"
+    assert result.image_created == "2026-03-08T12:00:00"
+
+
+def test_image_meta_none_in_partial():
+    result = AnalysisResult._from_partial(1, {})
+    assert result.image_filename is None
+    assert result.image_created is None
 
 
 def test_to_dict_services_are_nested():
