@@ -276,6 +276,8 @@ class AnalysisResult:
         ``service_complete`` event — same shape as ``service_results`` entries
         (wrapped or unwrapped, handled identically to ``_from_status``).
         """
+        # caption_score_* entries are aggregated into caption_scores by _stream()
+        # before reaching here, so accumulated never contains caption_score_* keys.
         service_results = {
             name: ServiceResult(
                 data=entry.get('data') if 'data' in entry else entry,
@@ -283,18 +285,6 @@ class AnalysisResult:
             )
             for name, entry in accumulated.items()
         }
-
-        # Aggregate any caption_score_* entries that have arrived so far.
-        caption_scores: dict[str, float] = {}
-        for name, entry in accumulated.items():
-            if name.startswith('caption_score_'):
-                model = name[len('caption_score_'):]
-                entry_data = entry.get('data') if 'data' in entry else entry
-                score = (entry_data.get('caption_score') or {}).get('similarity_score')
-                if score is not None:
-                    caption_scores[model] = score
-        if caption_scores:
-            service_results['caption_scores'] = ServiceResult(data=caption_scores)
 
         return cls(
             image_id=image_id,

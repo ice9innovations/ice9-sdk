@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.9] - 2026-03-13
+
+### Fixed
+- `caption_score_*` streaming events no longer surface as individual services in partial results
+  - Previously: `result.to_dict()["services"]` included `caption_score_blip`, etc. as raw keys
+  - Now: aggregated into `caption_scores` at accumulation time in `_stream()`, consistent with `_from_status`
+
 ## [0.0.8] - 2026-03-13
 
 ### Fixed
