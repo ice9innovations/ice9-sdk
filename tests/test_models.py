@@ -324,6 +324,36 @@ def test_caption_scores_absent_when_no_postprocessing():
 
 
 # ---------------------------------------------------------------------------
+# Multi-cluster postprocessing aggregation (e.g. colors_post)
+
+def test_multi_cluster_predictions_include_cluster_id():
+    import copy
+    data = copy.deepcopy(STATUS_COMPLETE)
+    data["postprocessing"] = [
+        {"service": "colors_post", "data": {"cluster_id": "grounding_dog",    "predictions": [{"hex": "#ff0000"}]}},
+        {"service": "colors_post", "data": {"cluster_id": "grounding_woman",  "predictions": [{"hex": "#00ff00"}]}},
+    ]
+    result = AnalysisResult._from_status(data)
+    preds = result.colors_post.predictions
+    assert len(preds) == 2
+    assert preds[0]["cluster_id"] == "grounding_dog"
+    assert preds[1]["cluster_id"] == "grounding_woman"
+
+
+def test_multi_cluster_predictions_without_cluster_id_unchanged():
+    import copy
+    data = copy.deepcopy(STATUS_COMPLETE)
+    data["postprocessing"] = [
+        {"service": "face", "data": {"predictions": [{"label": "face", "confidence": 0.9}]}},
+        {"service": "face", "data": {"predictions": [{"label": "face", "confidence": 0.8}]}},
+    ]
+    result = AnalysisResult._from_status(data)
+    preds = result.face.predictions
+    assert len(preds) == 2
+    assert "cluster_id" not in preds[0]
+
+
+# ---------------------------------------------------------------------------
 def test_to_dict_does_not_include_internal_api_fields():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     d = result.to_dict()

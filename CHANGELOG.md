@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [Unreleased]
+
+### Fixed
+- Multi-cluster postprocessing services (e.g. `colors_post`) now correctly accumulate
+  all clusters rather than overwriting with the last one
+  - `_from_status`: embeds `cluster_id` into each prediction when aggregating multi-entry
+    postprocessing services, so the UI can associate palettes with their source bounding box
+  - Streaming: `service_complete` events for cluster services merge predictions instead of
+    overwriting — result shape matches the polled path
+
 ## [0.0.7] - 2026-03-13
 
 ### Added

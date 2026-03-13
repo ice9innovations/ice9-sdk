@@ -242,11 +242,18 @@ class AnalysisResult:
                         processing_time=entry.get('processing_time'),
                     )
                 else:
-                    # Aggregate predictions from all entries for this service
+                    # Aggregate predictions from all entries for this service.
+                    # If an entry carries a cluster_id (e.g. colors_post, one per
+                    # florence2 bounding box), embed it in each prediction so the
+                    # UI can associate palettes with their source bounding box.
                     all_predictions = []
                     for entry in entries:
                         entry_data = entry.get('data') if 'data' in entry else entry
-                        all_predictions.extend(entry_data.get('predictions') or [])
+                        cluster_id = entry_data.get('cluster_id')
+                        for pred in (entry_data.get('predictions') or []):
+                            all_predictions.append(
+                                {**pred, 'cluster_id': cluster_id} if cluster_id else pred
+                            )
                     service_results[name] = ServiceResult(
                         data={'predictions': all_predictions},
                     )
