@@ -290,37 +290,6 @@ def test_rembg_absent_when_null():
     assert result.rembg is None
 
 
-# ---------------------------------------------------------------------------
-# caption_scores aggregation from postprocessing
-
-def test_caption_scores_aggregated_from_postprocessing():
-    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
-    assert result.caption_scores is not None
-
-
-def test_caption_scores_contains_model_scores():
-    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
-    scores = result.caption_scores
-    assert scores.moondream == pytest.approx(0.831)
-    assert scores.qwen == pytest.approx(0.847)
-
-
-def test_caption_score_entries_not_exposed_individually():
-    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
-    assert result.caption_score_moondream is None
-    assert result.caption_score_qwen is None
-
-
-def test_caption_scores_in_to_dict():
-    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
-    d = result.to_dict()
-    assert "caption_scores" in d["services"]
-    assert d["services"]["caption_scores"]["moondream"] == pytest.approx(0.831)
-
-
-def test_caption_scores_absent_when_no_postprocessing():
-    result = AnalysisResult._from_status(STATUS_COMPLETE)  # no postprocessing
-    assert result.caption_scores is None
 
 
 # ---------------------------------------------------------------------------

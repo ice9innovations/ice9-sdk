@@ -125,13 +125,12 @@ result.nudenet.detections        # content moderation
 result.colors.dominant           # dominant colors
 result.yolo_v8.predictions       # object detection
 result.noun_consensus.nouns      # consensus nouns across all VLMs
-result.caption_scores.moondream  # CLIP similarity score for moondream caption
 result.rembg.png_b64             # background removal matte (base64 PNG)
 ```
 
 Accessing a service that didn't run returns `None`.
 
-Which services are present depends on your tier — use `client.tiers()` to see what's included. Higher tiers add VLM captioning services (blip, moondream, florence2, gemini, gpt_nano, haiku, ollama, qwen) and downstream analysis (noun_consensus, verb_consensus, caption_summary, caption_scores, rembg). These services surface automatically when they run — no SDK changes needed as the service lineup evolves.
+Which services are present depends on your tier — use `client.tiers()` to see what's included. Higher tiers add VLM captioning services (blip, moondream, florence2, gemini, gpt_nano, haiku, ollama, qwen) and downstream analysis (noun_consensus, verb_consensus, caption_summary, rembg). These services surface automatically when they run — no SDK changes needed as the service lineup evolves.
 
 ### Serializing results
 

@@ -162,38 +162,7 @@ STATUS_COMPLETE_BASIC = {
             "updated_at": "2026-03-08T12:00:06",
         },
     },
-    "postprocessing": [
-        {
-            "service": "caption_score_moondream",
-            "data": {
-                "caption_score": {
-                    "service": "moondream",
-                    "caption": "a dog sitting on a wooden floor",
-                    "similarity_score": 0.831,
-                    "scored_at": "2026-03-08T12:00:07",
-                },
-                "processing_algorithm": "clip_similarity_v1",
-                "processed_at": "2026-03-08T12:00:07",
-            },
-            "status": "success",
-            "processing_time": 0.05,
-        },
-        {
-            "service": "caption_score_qwen",
-            "data": {
-                "caption_score": {
-                    "service": "qwen",
-                    "caption": "a brown dog on a hardwood floor",
-                    "similarity_score": 0.847,
-                    "scored_at": "2026-03-08T12:00:07",
-                },
-                "processing_algorithm": "clip_similarity_v1",
-                "processed_at": "2026-03-08T12:00:07",
-            },
-            "status": "success",
-            "processing_time": 0.05,
-        },
-    ],
+    "postprocessing": [],
 }
 
 TIERS_RESPONSE = {

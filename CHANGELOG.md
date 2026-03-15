@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.10] - 2026-03-15
+
+### Removed
+- `result.caption_scores` — CLIP caption scoring has been removed from the backend
+  - The `caption_score_*` postprocessing service is discontinued
+  - `result.caption_scores` will always be `None` going forward
+
 ## [0.0.9] - 2026-03-13
 
 ### Fixed

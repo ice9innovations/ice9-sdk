@@ -209,26 +209,13 @@ class AnalysisResult:
         # are aggregated by merging their predictions lists.
         postprocessing = data.get('postprocessing') or []
         if postprocessing:
-            # caption_score_* entries are aggregated into a single caption_scores
-            # ServiceResult: {"blip": 0.847, "moondream": 0.831, ...}
-            caption_scores: dict[str, float] = {}
             pp_groups: dict[str, list[dict]] = {}
 
             for entry in postprocessing:
                 name = entry.get('service')
                 if not name:
                     continue
-                if name.startswith('caption_score_'):
-                    model = name[len('caption_score_'):]
-                    entry_data = entry.get('data') if 'data' in entry else entry
-                    score = (entry_data.get('caption_score') or {}).get('similarity_score')
-                    if score is not None:
-                        caption_scores[model] = score
-                else:
-                    pp_groups.setdefault(name, []).append(entry)
-
-            if caption_scores and 'caption_scores' not in service_results:
-                service_results['caption_scores'] = ServiceResult(data=caption_scores)
+                pp_groups.setdefault(name, []).append(entry)
 
             for name, entries in pp_groups.items():
                 if name in service_results:
@@ -276,8 +263,8 @@ class AnalysisResult:
         ``service_complete`` event — same shape as ``service_results`` entries
         (wrapped or unwrapped, handled identically to ``_from_status``).
         """
-        # caption_score_* entries are aggregated into caption_scores by _stream()
-        # before reaching here, so accumulated never contains caption_score_* keys.
+        # postprocessing entries are aggregated into service_results by _stream()
+        # before reaching here, so accumulated never contains raw postprocessing keys.
         service_results = {
             name: ServiceResult(
                 data=entry.get('data') if 'data' in entry else entry,

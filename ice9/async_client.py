@@ -636,26 +636,18 @@ class AsyncIce9:
                                     service = payload["service"]
                                     result = payload["result"]
                                     result_data = result.get('data') if 'data' in result else result
-                                    if service.startswith('caption_score_'):
-                                        # Aggregate into caption_scores, never surface individually.
-                                        model = service[len('caption_score_'):]
-                                        score = (result_data.get('caption_score') or {}).get('similarity_score')
-                                        if score is not None:
-                                            existing = accumulated.get('caption_scores') or {}
-                                            accumulated['caption_scores'] = {**existing, model: score}
+                                    cluster_id = result_data.get('cluster_id') if isinstance(result_data, dict) else None
+                                    if cluster_id is not None:
+                                        # Multi-cluster service (e.g. colors_post): merge
+                                        # predictions with cluster_id embedded in each entry.
+                                        new_preds = [{**p, 'cluster_id': cluster_id}
+                                                     for p in (result_data.get('predictions') or [])]
+                                        existing = accumulated.get(service, {})
+                                        accumulated[service] = {
+                                            'predictions': (existing.get('predictions') or []) + new_preds
+                                        }
                                     else:
-                                        cluster_id = result_data.get('cluster_id') if isinstance(result_data, dict) else None
-                                        if cluster_id is not None:
-                                            # Multi-cluster service (e.g. colors_post): merge
-                                            # predictions with cluster_id embedded in each entry.
-                                            new_preds = [{**p, 'cluster_id': cluster_id}
-                                                         for p in (result_data.get('predictions') or [])]
-                                            existing = accumulated.get(service, {})
-                                            accumulated[service] = {
-                                                'predictions': (existing.get('predictions') or []) + new_preds
-                                            }
-                                        else:
-                                            accumulated[service] = result
+                                        accumulated[service] = result
                                     yield AnalysisResult._from_partial(image_id, accumulated)
                                 elif current_event == "complete":
                                     final = AnalysisResult._from_status(payload)
