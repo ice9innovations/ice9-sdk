@@ -77,8 +77,7 @@ class AsyncIce9:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self._client:
-            await self._client.aclose()
+        await self.aclose()
 
     def _get_client(self) -> httpx.AsyncClient:
         """Get or create the httpx client."""
@@ -692,6 +691,7 @@ class AsyncIce9:
         """Close the underlying HTTP client. Only needed if not using context manager."""
         if self._client:
             await self._client.aclose()
+            self._client = None
 
 
 async def _async_sleep(seconds: float):
@@ -712,6 +712,7 @@ def _parse_retry_after(resp: httpx.Response) -> float | None:
 
 def _error_message(resp: httpx.Response) -> str | None:
     try:
-        return resp.json().get("error")
+        data = resp.json()
+        return data.get("error") or data.get("detail")
     except Exception:
         return None

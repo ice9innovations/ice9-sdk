@@ -29,25 +29,29 @@ def make_client(**kwargs):
 # ---------------------------------------------------------------------------
 # Initialization
 
-def test_init_requires_key(monkeypatch):
+@pytest.mark.asyncio
+async def test_init_requires_key(monkeypatch):
     monkeypatch.delenv("ICE9_API_KEY", raising=False)
     with pytest.raises(AuthError):
         AsyncIce9()
 
 
-def test_init_accepts_env_var(monkeypatch):
+@pytest.mark.asyncio
+async def test_init_accepts_env_var(monkeypatch):
     monkeypatch.setenv("ICE9_API_KEY", "ice9_from_env")
     client = AsyncIce9()
     assert client._api_key == "ice9_from_env"
 
 
-def test_init_explicit_key_takes_precedence(monkeypatch):
+@pytest.mark.asyncio
+async def test_init_explicit_key_takes_precedence(monkeypatch):
     monkeypatch.setenv("ICE9_API_KEY", "ice9_from_env")
     client = AsyncIce9(api_key="ice9_explicit")
     assert client._api_key == "ice9_explicit"
 
 
-def test_init_strips_trailing_slash_from_base_url():
+@pytest.mark.asyncio
+async def test_init_strips_trailing_slash_from_base_url():
     client = AsyncIce9(api_key="ice9_test", base_url="https://example.com/")
     assert client._base_url == "https://example.com"
 
@@ -64,8 +68,14 @@ async def test_context_manager_closes_client():
     client = make_client()
     async with client:
         pass
-    # Client should be closed after context exit
-    assert client._client is not None  # Still exists but closed
+    assert client._client is None
+
+
+async def test_aclose_resets_client_to_none():
+    client = make_client()
+    await client.__aenter__()
+    await client.aclose()
+    assert client._client is None
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +95,16 @@ async def test_tiers_raises_on_server_error(respx_mock):
 
     async with make_client() as client:
         with pytest.raises(Ice9Error, match="500"):
+            await client.tiers()
+
+
+async def test_tiers_uses_detail_field_when_error_missing(respx_mock):
+    respx_mock.get(f"{BASE}/tiers").mock(
+        return_value=httpx.Response(400, json={"detail": "bad tier request"})
+    )
+
+    async with make_client() as client:
+        with pytest.raises(Ice9Error, match="bad tier request"):
             await client.tiers()
 
 
@@ -383,9 +403,10 @@ async def test_partial_failure_raises_partial_result_error(respx_mock, png_file)
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
-    async with make_client() as client:
-        with pytest.raises(PartialResultError) as exc_info:
-            await client.analyze(png_file)
+    with pytest.warns(UserWarning, match="failed services: \\['nudenet'\\]"):
+        async with make_client() as client:
+            with pytest.raises(PartialResultError) as exc_info:
+                await client.analyze(png_file)
 
     # The partial result is still accessible on the exception
     assert exc_info.value.result.image_id == 42
@@ -402,9 +423,10 @@ async def test_raise_on_partial_false_returns_result_instead_of_raising(respx_mo
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
-    async with make_client() as client:
-        # Should not raise — just return the result with services_failed populated
-        result = await client.analyze(png_file, raise_on_partial=False)
+    with pytest.warns(UserWarning, match="failed services: \\['nudenet'\\]"):
+        async with make_client() as client:
+            # Should not raise — just return the result with services_failed populated
+            result = await client.analyze(png_file, raise_on_partial=False)
 
     assert result.image_id == 42
     assert result.services_failed == {"nudenet": "worker crashed"}
@@ -422,9 +444,10 @@ async def test_raise_on_partial_false_logs_warning(respx_mock, png_file, caplog)
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
-    with caplog.at_level(logging.WARNING, logger="ice9"):
-        async with make_client() as client:
-            result = await client.analyze(png_file, raise_on_partial=False)
+    with pytest.warns(UserWarning, match="failed services: \\['yolo'\\]"):
+        with caplog.at_level(logging.WARNING, logger="ice9"):
+            async with make_client() as client:
+                result = await client.analyze(png_file, raise_on_partial=False)
 
     assert "failed services" in caplog.text.lower()
     assert "yolo" in caplog.text

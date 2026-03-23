@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.11] - 2026-03-23
+
+### Added
+- `Ice9` sync client now supports context manager (`with Ice9(...) as client`)
+- Error messages now surface `detail` field from API responses in addition to `error`
+
+### Fixed
+- `AsyncIce9.aclose()` now sets `_client = None` after closing, preventing double-close
+- `AsyncIce9.__aexit__` delegates to `aclose()` instead of duplicating close logic
+
 ## [0.0.10] - 2026-03-15
 
 ### Removed

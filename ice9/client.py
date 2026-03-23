@@ -72,6 +72,16 @@ class Ice9:
             ),
         )
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        """Close the underlying HTTP client."""
+        self._client.close()
+
     def _should_retry(self, exc: Exception, resp: httpx.Response | None = None) -> bool:
         """Determine if a request should be retried based on the error."""
         # Connection errors - transient network issues
@@ -673,6 +683,7 @@ def _parse_retry_after(resp: httpx.Response) -> float | None:
 
 def _error_message(resp: httpx.Response) -> str | None:
     try:
-        return resp.json().get("error")
+        data = resp.json()
+        return data.get("error") or data.get("detail")
     except Exception:
         return None

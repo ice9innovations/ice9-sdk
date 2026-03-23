@@ -52,6 +52,20 @@ def test_init_strips_trailing_slash_from_base_url():
 
 
 # ---------------------------------------------------------------------------
+# Context manager / close
+
+def test_context_manager_returns_client():
+    with make_client() as client:
+        assert isinstance(client, Ice9)
+
+
+def test_close_closes_underlying_client():
+    client = make_client()
+    client.close()
+    assert client._client.is_closed
+
+
+# ---------------------------------------------------------------------------
 # tiers()
 
 def test_tiers_returns_dict(respx_mock):
@@ -65,6 +79,14 @@ def test_tiers_returns_dict(respx_mock):
 def test_tiers_raises_on_server_error(respx_mock):
     respx_mock.get(f"{BASE}/tiers").mock(return_value=httpx.Response(500, json={"error": "down"}))
     with pytest.raises(Ice9Error, match="500"):
+        make_client().tiers()
+
+
+def test_tiers_uses_detail_field_when_error_missing(respx_mock):
+    respx_mock.get(f"{BASE}/tiers").mock(
+        return_value=httpx.Response(400, json={"detail": "bad tier request"})
+    )
+    with pytest.raises(Ice9Error, match="bad tier request"):
         make_client().tiers()
 
 
@@ -354,8 +376,9 @@ def test_partial_failure_raises_partial_result_error(png_file, respx_mock):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
-    with pytest.raises(PartialResultError) as exc_info:
-        make_client().analyze(png_file)
+    with pytest.warns(UserWarning, match="failed services: \\['nudenet'\\]"):
+        with pytest.raises(PartialResultError) as exc_info:
+            make_client().analyze(png_file)
 
     # The partial result is still accessible on the exception
     assert exc_info.value.result.image_id == 42
@@ -372,12 +395,13 @@ def test_partial_result_contains_succeeded_services(png_file, respx_mock):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
-    try:
-        make_client().analyze(png_file)
-    except PartialResultError as exc:
-        result = exc.result
-        assert result.nudenet is not None
-        assert result.ocr is None
+    with pytest.warns(UserWarning, match="failed services: \\['ocr'\\]"):
+        try:
+            make_client().analyze(png_file)
+        except PartialResultError as exc:
+            result = exc.result
+            assert result.nudenet is not None
+            assert result.ocr is None
 
 
 def test_raise_on_partial_false_returns_result_instead_of_raising(png_file, respx_mock):
@@ -390,7 +414,8 @@ def test_raise_on_partial_false_returns_result_instead_of_raising(png_file, resp
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
     # Should not raise — just return the result with services_failed populated
-    result = make_client().analyze(png_file, raise_on_partial=False)
+    with pytest.warns(UserWarning, match="failed services: \\['nudenet'\\]"):
+        result = make_client().analyze(png_file, raise_on_partial=False)
 
     assert result.image_id == 42
     assert result.services_failed == {"nudenet": "worker crashed"}
@@ -408,8 +433,9 @@ def test_raise_on_partial_false_logs_warning(png_file, respx_mock, caplog):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
 
-    with caplog.at_level(logging.WARNING, logger="ice9"):
-        result = make_client().analyze(png_file, raise_on_partial=False)
+    with pytest.warns(UserWarning, match="failed services: \\['yolo'\\]"):
+        with caplog.at_level(logging.WARNING, logger="ice9"):
+            result = make_client().analyze(png_file, raise_on_partial=False)
 
     assert "failed services" in caplog.text.lower()
     assert "yolo" in caplog.text
@@ -596,8 +622,9 @@ def test_stream_with_failed_services_raises_partial_result_error(png_file, respx
         )
     )
 
-    with pytest.raises(PartialResultError) as exc_info:
-        list(make_client().analyze(png_file, stream=True))
+    with pytest.warns(UserWarning, match="failed services: \\['yolo'\\]"):
+        with pytest.raises(PartialResultError) as exc_info:
+            list(make_client().analyze(png_file, stream=True))
 
     assert exc_info.value.result.services_failed == {"yolo": "worker crashed"}
 
@@ -623,7 +650,8 @@ def test_stream_raise_on_partial_false_returns_result(png_file, respx_mock):
     )
 
     # Should not raise — just yield the result with services_failed populated
-    results = list(make_client().analyze(png_file, stream=True, raise_on_partial=False))
+    with pytest.warns(UserWarning, match="failed services: \\['ocr'\\]"):
+        results = list(make_client().analyze(png_file, stream=True, raise_on_partial=False))
     final = results[-1]
 
     assert final.is_complete is True
