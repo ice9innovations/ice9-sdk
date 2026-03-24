@@ -179,6 +179,22 @@ This is useful for:
 - Avoiding re-analysis of the same image
 - Building dashboards or reports from historical data
 
+## SDK Scope
+
+This SDK wraps the supported customer API surface:
+
+- `POST /analyze`
+- `GET /status/<image_id>`
+- `GET /results/<image_id>`
+- `GET /stream/<image_id>`
+- `GET /tiers`
+- `GET /services`
+
+Internal operator endpoints such as `/internal/outbox` and
+`/internal/outbox/retry` are not currently wrapped by the public SDK. Those
+endpoints are operational controls rather than part of the stable customer
+contract, so they may evolve without SDK compatibility guarantees.
+
 ## Real-time Progress Updates
 
 For real-time UIs, dashboards, or monitoring tools that need to show analysis progress as it happens, use **streaming** (recommended) or manual polling (fallback).

@@ -544,6 +544,33 @@ def test_stream_final_result_from_complete_event(png_file, respx_mock):
     assert final.services_failed == {}
 
 
+def test_stream_final_result_fills_missing_services_submitted_from_accumulated_events(png_file, respx_mock):
+    import copy
+
+    final_payload = copy.deepcopy(_STREAM_COMPLETE_PAYLOAD)
+    final_payload["services_submitted"] = []
+
+    sse_body = _make_sse_body(
+        ("service_complete", {"service": "nudenet", "result": {"detections": []}}),
+        ("service_complete", {"service": "colors", "result": {"dominant": ["#ffffff"]}}),
+        ("complete", final_payload),
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(
+            200,
+            content=sse_body,
+            headers={"Content-Type": "text/event-stream"},
+        )
+    )
+
+    final = list(make_client().analyze(png_file, stream=True))[-1]
+
+    assert final.is_complete is True
+    assert set(final.services_submitted) >= {"nudenet", "colors"}
+
+
 def test_stream_timeout_event_raises(png_file, respx_mock):
     body = _make_sse_body(("timeout", {"reason": "processing timed out"}))
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))

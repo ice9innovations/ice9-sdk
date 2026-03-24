@@ -21,21 +21,22 @@ def pytest_configure(config):
     )
 
 
-def _require_env(name):
-    value = os.environ.get(name)
-    if not value:
-        pytest.skip(f"{name} environment variable not set")
-    return value
+def _require_env(*names):
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    pytest.skip(f"None of {', '.join(names)} environment variables are set")
 
 
 @pytest.fixture(scope="session")
 def api_key():
-    return _require_env("ICE9_API_KEY")
+    return _require_env("ICE9_API_KEY", "API_KEY")
 
 
 @pytest.fixture(scope="session")
 def base_url():
-    return os.environ.get("ICE9_BASE_URL", "https://api.ice9.ai")
+    return os.environ.get("ICE9_BASE_URL") or os.environ.get("API_URL") or "https://api.ice9.ai"
 
 
 @pytest.fixture(scope="session")

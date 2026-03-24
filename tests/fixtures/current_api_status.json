@@ -1,0 +1,262 @@
+{
+  "image_id": 4242,
+  "image_filename": "fixture.jpg",
+  "image_group": "sdk-compatibility",
+  "image_created": "2026-03-20T10:00:00",
+  "services_submitted": [
+    "nudenet",
+    "colors",
+    "metadata",
+    "ocr",
+    "qr",
+    "moondream",
+    "qwen",
+    "florence2_grounding",
+    "noun_consensus",
+    "caption_summary",
+    "content_analysis",
+    "rembg"
+  ],
+  "services_completed": {
+    "nudenet": {
+      "status": "success",
+      "result_created": "2026-03-20T10:00:01",
+      "processing_time": 0.4
+    },
+    "colors": {
+      "status": "success",
+      "result_created": "2026-03-20T10:00:01",
+      "processing_time": 0.1
+    },
+    "metadata": {
+      "status": "success",
+      "result_created": "2026-03-20T10:00:01",
+      "processing_time": 0.1
+    },
+    "ocr": {
+      "status": "success",
+      "result_created": "2026-03-20T10:00:01",
+      "processing_time": 0.2
+    },
+    "qr": {
+      "status": "success",
+      "result_created": "2026-03-20T10:00:01",
+      "processing_time": 0.1
+    }
+  },
+  "services_pending": [],
+  "services_failed": {},
+  "progress": "12/12",
+  "is_complete": true,
+  "primary_complete": true,
+  "downstream_pending": [],
+  "service_results": {
+    "nudenet": {
+      "data": {
+        "detections": []
+      },
+      "processing_time": 0.4,
+      "result_created": "2026-03-20T10:00:01"
+    },
+    "colors": {
+      "data": {
+        "dominant": [
+          "#ffffff"
+        ]
+      },
+      "processing_time": 0.1,
+      "result_created": "2026-03-20T10:00:01"
+    },
+    "metadata": {
+      "data": {
+        "width": 64,
+        "height": 64
+      },
+      "processing_time": 0.1,
+      "result_created": "2026-03-20T10:00:01"
+    },
+    "ocr": {
+      "data": {
+        "text": ""
+      },
+      "processing_time": 0.2,
+      "result_created": "2026-03-20T10:00:01"
+    },
+    "qr": {
+      "data": {
+        "codes": []
+      },
+      "processing_time": 0.1,
+      "result_created": "2026-03-20T10:00:01"
+    },
+    "moondream": {
+      "data": {
+        "predictions": [
+          {
+            "text": "a dog sitting on a wooden floor"
+          }
+        ]
+      },
+      "processing_time": 1.2,
+      "result_created": "2026-03-20T10:00:02"
+    },
+    "qwen": {
+      "data": {
+        "predictions": [
+          {
+            "text": "a brown dog on a hardwood floor"
+          }
+        ]
+      },
+      "processing_time": 2.1,
+      "result_created": "2026-03-20T10:00:03"
+    },
+    "florence2_grounding": {
+      "data": {
+        "predictions": [
+          {
+            "label": "dog",
+            "bbox": {
+              "x": 50,
+              "y": 80,
+              "width": 200,
+              "height": 180
+            }
+          }
+        ]
+      },
+      "processing_time": 0.9,
+      "result_created": "2026-03-20T10:00:04"
+    },
+    "noun_consensus": {
+      "nouns": [
+        {
+          "canonical": "dog",
+          "category": "animal",
+          "confidence": 1.0,
+          "grounding_validated": true,
+          "vote_count": 2,
+          "services": [
+            "moondream",
+            "qwen"
+          ],
+          "surface_forms": [
+            "dog"
+          ]
+        }
+      ],
+      "nouns_all": [
+        {
+          "canonical": "dog",
+          "category": "animal",
+          "confidence": 1.0,
+          "grounding_validated": true,
+          "vote_count": 2,
+          "services": [
+            "moondream",
+            "qwen"
+          ],
+          "surface_forms": [
+            "dog"
+          ]
+        }
+      ],
+      "category_tally": [
+        {
+          "category": "animal",
+          "count": 1
+        }
+      ],
+      "services_present": [
+        "moondream",
+        "qwen"
+      ],
+      "service_count": 2,
+      "created_at": "2026-03-20T10:00:05",
+      "updated_at": "2026-03-20T10:00:05"
+    },
+    "caption_summary": {
+      "summary_caption": "A dog is sitting on a hardwood floor.",
+      "model": "qwen",
+      "services_present": [
+        "moondream",
+        "qwen"
+      ],
+      "service_count": 2,
+      "created_at": "2026-03-20T10:00:06",
+      "updated_at": "2026-03-20T10:00:06"
+    },
+    "content_analysis": {
+      "full_analysis": {
+        "activity_analysis": {
+          "scene_type": "safe",
+          "intimacy_level": "none",
+          "people_count": 0,
+          "activities_detected": [],
+          "spatial_relationships": []
+        },
+        "anatomy_exposed": [],
+        "gender_breakdown": {},
+        "person_attributions": [],
+        "semantic_validation": {}
+      },
+      "created": "2026-03-20T10:00:06",
+      "analysis_version": "1.0"
+    }
+  },
+  "merged_boxes": [],
+  "consensus": null,
+  "postprocessing": [
+    {
+      "service": "colors_post",
+      "data": {
+        "cluster_id": "grounding_dog",
+        "predictions": [
+          {
+            "hex": "#ff0000"
+          }
+        ]
+      }
+    },
+    {
+      "service": "colors_post",
+      "data": {
+        "cluster_id": "grounding_floor",
+        "predictions": [
+          {
+            "hex": "#8b5a2b"
+          }
+        ]
+      }
+    }
+  ],
+  "noun_consensus": null,
+  "verb_consensus": null,
+  "sam3": null,
+  "caption_summary": null,
+  "rembg": {
+    "model": "birefnet-general",
+    "png_b64": "aGVsbG8=",
+    "premasked": false,
+    "processing_time": 1.2,
+    "shape": [
+      512,
+      512
+    ],
+    "updated_at": "2026-03-20T10:00:07"
+  },
+  "service_dispatch": [
+    {
+      "service": "moondream",
+      "status": "dispatched",
+      "attempt": 1
+    }
+  ],
+  "consensus_complete": false,
+  "content_analysis_complete": true,
+  "noun_consensus_complete": true,
+  "verb_consensus_complete": false,
+  "sam3_complete": false,
+  "caption_summary_complete": true,
+  "rembg_complete": true
+}

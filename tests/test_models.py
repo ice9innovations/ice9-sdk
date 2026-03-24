@@ -1,8 +1,16 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from ice9.models import AnalysisResult, ServiceResult
 
 from .conftest import STATUS_COMPLETE, STATUS_COMPLETE_BASIC
+
+
+def _load_fixture(name: str) -> dict:
+    path = Path(__file__).parent / "fixtures" / name
+    return json.loads(path.read_text())
 
 
 # ---------------------------------------------------------------------------
@@ -329,3 +337,18 @@ def test_to_dict_does_not_include_internal_api_fields():
     for internal in ("service_dispatch", "downstream_pending", "primary_complete",
                      "consensus_complete", "vlm_services", "progress"):
         assert internal not in d
+
+
+def test_current_api_status_fixture_parses_without_drift():
+    data = _load_fixture("current_api_status.json")
+    result = AnalysisResult._from_status(data)
+
+    assert result.image_id == 4242
+    assert result.noun_consensus is not None
+    assert result.caption_summary is not None
+    assert result.content_analysis is not None
+    assert result.rembg is not None
+    assert result.colors_post is not None
+    assert len(result.colors_post.predictions) == 2
+    assert result.colors_post.predictions[0]["cluster_id"] == "grounding_dog"
+    assert result.to_dict()["services"]["content_analysis"]["analysis_version"] == "1.0"

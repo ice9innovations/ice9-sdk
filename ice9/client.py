@@ -632,7 +632,16 @@ class Ice9:
                                         accumulated[service] = result
                                     yield AnalysisResult._from_partial(image_id, accumulated)
                                 elif current_event == "complete":
-                                    final = AnalysisResult._from_status(payload)
+                                    final_payload = dict(payload)
+                                    if accumulated:
+                                        existing_results = final_payload.get("service_results") or {}
+                                        final_payload["service_results"] = {
+                                            **accumulated,
+                                            **existing_results,
+                                        }
+                                        if not final_payload.get("services_submitted"):
+                                            final_payload["services_submitted"] = list(accumulated.keys())
+                                    final = AnalysisResult._from_status(final_payload)
                                     if final.services_failed:
                                         if raise_on_partial:
                                             raise PartialResultError(

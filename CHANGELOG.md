@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.12] - 2026-03-23
+
+### Added
+- Real-API integration coverage for `services()`, `get_status()`, `get_result()`, SSE streaming, and async-client parity
+- Explicit compatibility fixture for the current API `status`/`results` shape, including aggregate services and tolerated progress/dispatch fields
+
+### Changed
+- Integration test configuration now accepts either `ICE9_API_KEY` / `ICE9_BASE_URL` or `API_KEY` / `API_URL` from `.env`
+- README now documents the supported public SDK surface and clarifies that internal operator endpoints are not part of the public compatibility contract
+
+### Fixed
+- Streaming final results now preserve `services_submitted` when the final SSE `complete` event omits that field
+  - Both sync and async clients merge accumulated streamed services into the final `AnalysisResult`
+  - Prevents empty or incomplete `result.services_submitted` on the final streaming yield
+
 ## [0.0.11] - 2026-03-23
 
 ### Added

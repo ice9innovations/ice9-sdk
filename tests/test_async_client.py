@@ -484,3 +484,35 @@ async def test_stream_returns_async_generator(respx_mock, png_file):
         # Should yield at least the final result
         assert len(results) >= 1
         assert results[-1].is_complete is True
+
+
+async def test_stream_final_result_fills_missing_services_submitted_from_accumulated_events(respx_mock, png_file):
+    import copy
+    import json as _json
+
+    final_payload = copy.deepcopy(STATUS_COMPLETE)
+    final_payload["services_submitted"] = []
+
+    sse_body = (
+        b"event: service_complete\n"
+        b"data: " + _json.dumps({"service": "nudenet", "result": {"detections": []}}).encode() + b"\n\n"
+        b"event: service_complete\n"
+        b"data: " + _json.dumps({"service": "colors", "result": {"dominant": ["#ffffff"]}}).encode() + b"\n\n"
+        b"event: complete\n"
+        b"data: " + _json.dumps(final_payload).encode() + b"\n\n"
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
+    )
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    final = results[-1]
+    assert final.is_complete is True
+    assert set(final.services_submitted) >= {"nudenet", "colors"}
