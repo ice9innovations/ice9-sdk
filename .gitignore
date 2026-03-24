@@ -1,11 +1,12 @@
 # Byte-compiled / optimized / DLL files
+CONTRACT.md
 __pycache__/
 *.py[codz]
 *$py.class
 
 # C extensions
 *.so
-
+issues
 # Distribution / packaging
 .Python
 build/
