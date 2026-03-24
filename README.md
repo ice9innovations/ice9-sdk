@@ -6,6 +6,17 @@
 
 Python SDK for the [ice9](https://ice9.ai) image analysis API.
 
+## Stability
+
+`ice9` is currently a pre-1.0 SDK and uses `0.0.x` versioning.
+
+- Breaking changes may still happen between releases while the upstream API and
+  pipeline contracts are settling
+- New services are expected to appear over time without requiring SDK changes
+- If you pin the SDK, read [CHANGELOG.md](./CHANGELOG.md) before upgrading
+
+After 1.0, the SDK will follow semantic versioning more strictly.
+
 ## Installation
 
 ```bash
