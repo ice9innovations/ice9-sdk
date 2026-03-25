@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.14] - 2026-03-25
+
+### Changed
+- Final `analyze()` results now use `/results/<image_id>` as the canonical payload after `/status` reports `is_complete=true`
+  - Both `Ice9` and `AsyncIce9` now treat `/status` as the completion gate and `/results` as the final result source
+  - Prevents incomplete final `AnalysisResult` objects when `/status` completion briefly gets ahead of final result shaping
+
+### Fixed
+- Streaming finalization now preserves already-observed `service_complete` results if the immediate `/results` fetch briefly lags behind the stream
+  - The final streamed `AnalysisResult` remains monotonic instead of dropping services the client already saw complete
+- Terminal failed result artifacts with `data: null` now preserve `status` and `error_message`
+  - Failed services returned as real result rows no longer collapse to empty payloads in the SDK model layer
+- Basic-tier live integration now prefers a real local fixture image when available
+  - Avoids exercising pose/face/grounding flows against a synthetic blank image by default
+
 ## [0.0.13] - 2026-03-24
 
 ### Fixed

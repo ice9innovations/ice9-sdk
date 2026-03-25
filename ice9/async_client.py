@@ -392,8 +392,17 @@ class AsyncIce9:
         if stream:
             return self._stream(image_id, effective_timeout, raise_on_partial)
 
-        status = await self._poll(image_id, deadline)
-        result = AnalysisResult._from_status(status)
+        await self._poll(image_id, deadline)
+        result = await self.get_result(image_id)
+
+        return self._handle_partial_result(result, raise_on_partial)
+
+    def _handle_partial_result(
+        self,
+        result: AnalysisResult,
+        raise_on_partial: bool,
+    ) -> AnalysisResult:
+        """Raise or log if the final result contains failed services."""
 
         if result.services_failed:
             if raise_on_partial:
@@ -409,6 +418,37 @@ class AsyncIce9:
                 )
 
         return result
+
+    def _merge_stream_accumulated_results(
+        self,
+        result: AnalysisResult,
+        accumulated: dict,
+    ) -> AnalysisResult:
+        """Preserve already-observed stream completions if /results briefly lags."""
+        if not accumulated:
+            return result
+
+        raw = dict(result._raw)
+        merged_service_results = dict(raw.get("service_results") or {})
+        changed = False
+
+        for service, entry in accumulated.items():
+            if service not in merged_service_results:
+                merged_service_results[service] = entry
+                changed = True
+
+        merged_services_submitted = list(raw.get("services_submitted") or [])
+        for service in accumulated:
+            if service not in merged_services_submitted:
+                merged_services_submitted.append(service)
+                changed = True
+
+        if not changed:
+            return result
+
+        raw["service_results"] = merged_service_results
+        raw["services_submitted"] = merged_services_submitted
+        return AnalysisResult._from_status(raw)
 
     async def _upload(self, image: str | Path | BinaryIO, tier: str | None, image_group: str) -> int:
         if isinstance(image, (str, Path)):
@@ -565,8 +605,13 @@ class AsyncIce9:
                     return body
                 # Still in progress
                 services_submitted = body.get("services_submitted", [])
-                services_complete = sum(1 for s in body.get("service_results", {}).values() if s.get("status") == "success")
-                progress = f"{services_complete}/{len(services_submitted)} services"
+                settled_statuses = {"success", "failed", "dead_lettered", "dead-lettered"}
+                services_settled = sum(
+                    1
+                    for service_result in body.get("service_results", {}).values()
+                    if service_result.get("status") in settled_statuses
+                )
+                progress = f"{services_settled}/{len(services_submitted)} services"
                 logger.debug(f"GET /status/{image_id} -> in progress ({progress})")
                 await _async_sleep(min(self.POLL_INTERVAL, max(0, deadline - time.monotonic())))
                 continue
@@ -649,29 +694,9 @@ class AsyncIce9:
                                         accumulated[service] = result
                                     yield AnalysisResult._from_partial(image_id, accumulated)
                                 elif current_event == "complete":
-                                    final_payload = dict(payload)
-                                    if accumulated:
-                                        existing_results = final_payload.get("service_results") or {}
-                                        final_payload["service_results"] = {
-                                            **accumulated,
-                                            **existing_results,
-                                        }
-                                        if not final_payload.get("services_submitted"):
-                                            final_payload["services_submitted"] = list(accumulated.keys())
-                                    final = AnalysisResult._from_status(final_payload)
-                                    if final.services_failed:
-                                        if raise_on_partial:
-                                            raise PartialResultError(
-                                                f"Analysis completed with failed services: "
-                                                f"{list(final.services_failed.keys())}",
-                                                result=final,
-                                            )
-                                        else:
-                                            logger.warning(
-                                                f"Analysis completed with failed services: "
-                                                f"{list(final.services_failed.keys())}"
-                                            )
-                                    yield final
+                                    final = await self.get_result(image_id)
+                                    final = self._merge_stream_accumulated_results(final, accumulated)
+                                    yield self._handle_partial_result(final, raise_on_partial)
                                     return
                                 elif current_event == "timeout":
                                     raise AnalysisTimeoutError(

@@ -26,6 +26,12 @@ def make_client(**kwargs):
     return AsyncIce9(api_key="ice9_test", **kwargs)
 
 
+def mock_final_result(respx_mock, payload=STATUS_COMPLETE, image_id=42):
+    respx_mock.get(f"{BASE}/results/{image_id}").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Initialization
 
@@ -195,6 +201,7 @@ async def test_get_result_500_raises_ice9_error(respx_mock):
 async def test_analyze_returns_analysis_result(respx_mock, png_file):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         result = await client.analyze(png_file)
@@ -208,6 +215,7 @@ async def test_analyze_returns_analysis_result(respx_mock, png_file):
 async def test_analyze_accepts_path_string(respx_mock, png_file):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         result = await client.analyze(str(png_file))
@@ -218,6 +226,7 @@ async def test_analyze_accepts_path_string(respx_mock, png_file):
 async def test_analyze_accepts_file_object(respx_mock, png_bytes_io):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         result = await client.analyze(png_bytes_io)
@@ -235,6 +244,7 @@ async def test_analyze_accepts_url(respx_mock):
     # Mock the API submission
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         result = await client.analyze("https://example.com/photo.jpg")
@@ -276,6 +286,7 @@ async def test_analyze_polls_until_complete(respx_mock, png_file):
         httpx.Response(200, json=in_progress),
         httpx.Response(200, json=STATUS_COMPLETE),
     ]
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         client.POLL_INTERVAL = 0  # don't sleep in tests
@@ -365,6 +376,7 @@ async def test_status_429_backs_off_and_retries(respx_mock, png_file):
         httpx.Response(429, json={"error": "rate limit"}, headers={"Retry-After": "0"}),
         httpx.Response(200, json=STATUS_COMPLETE),
     ]
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         client.POLL_INTERVAL = 0
@@ -402,6 +414,7 @@ async def test_partial_failure_raises_partial_result_error(respx_mock, png_file)
 
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+    mock_final_result(respx_mock, partial_status)
 
     with pytest.warns(UserWarning, match="failed services: \\['nudenet'\\]"):
         async with make_client() as client:
@@ -422,6 +435,7 @@ async def test_raise_on_partial_false_returns_result_instead_of_raising(respx_mo
 
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+    mock_final_result(respx_mock, partial_status)
 
     with pytest.warns(UserWarning, match="failed services: \\['nudenet'\\]"):
         async with make_client() as client:
@@ -443,6 +457,7 @@ async def test_raise_on_partial_false_logs_warning(respx_mock, png_file, caplog)
 
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=partial_status))
+    mock_final_result(respx_mock, partial_status)
 
     with pytest.warns(UserWarning, match="failed services: \\['yolo'\\]"):
         with caplog.at_level(logging.WARNING, logger="ice9"):
@@ -474,6 +489,7 @@ async def test_stream_returns_async_generator(respx_mock, png_file):
     respx_mock.get(f"{BASE}/stream/42").mock(
         return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
     )
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         generator = await client.analyze(png_file, stream=True)
@@ -506,6 +522,7 @@ async def test_stream_final_result_fills_missing_services_submitted_from_accumul
     respx_mock.get(f"{BASE}/stream/42").mock(
         return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
     )
+    mock_final_result(respx_mock)
 
     async with make_client() as client:
         generator = await client.analyze(png_file, stream=True)
@@ -516,3 +533,83 @@ async def test_stream_final_result_fills_missing_services_submitted_from_accumul
     final = results[-1]
     assert final.is_complete is True
     assert set(final.services_submitted) >= {"nudenet", "colors"}
+
+
+async def test_analyze_fetches_results_after_status_complete(respx_mock, png_file):
+    import copy
+
+    status_complete = copy.deepcopy(STATUS_COMPLETE)
+    status_complete["service_results"].pop("content_analysis", None)
+
+    results_complete = copy.deepcopy(STATUS_COMPLETE)
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=status_complete))
+    mock_final_result(respx_mock, results_complete)
+
+    async with make_client() as client:
+        result = await client.analyze(png_file)
+
+    assert result.content_analysis is not None
+
+
+async def test_stream_fetches_results_after_complete_event(respx_mock, png_file):
+    import copy
+    import json as _json
+
+    final_payload = copy.deepcopy(STATUS_COMPLETE)
+    final_payload["service_results"].pop("content_analysis", None)
+
+    sse_body = (
+        b"event: service_complete\n"
+        b"data: " + _json.dumps({"service": "nudenet", "result": {"detections": []}}).encode() + b"\n\n"
+        b"event: complete\n"
+        b"data: " + _json.dumps(final_payload).encode() + b"\n\n"
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
+    )
+    mock_final_result(respx_mock, STATUS_COMPLETE)
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    assert results[-1].content_analysis is not None
+
+
+async def test_stream_preserves_already_observed_services_if_results_lags(respx_mock, png_file):
+    import copy
+    import json as _json
+
+    sse_body = (
+        b"event: service_complete\n"
+        b"data: " + _json.dumps({"service": "nudenet", "result": {"detections": []}}).encode() + b"\n\n"
+        b"event: service_complete\n"
+        b"data: " + _json.dumps({"service": "colors", "result": {"dominant": ["#ffffff"]}}).encode() + b"\n\n"
+        b"event: complete\n"
+        b"data: " + _json.dumps(STATUS_COMPLETE).encode() + b"\n\n"
+    )
+
+    lagging_results = copy.deepcopy(STATUS_COMPLETE)
+    lagging_results["service_results"].pop("colors", None)
+    lagging_results["services_submitted"] = [s for s in lagging_results["services_submitted"] if s != "colors"]
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
+    )
+    mock_final_result(respx_mock, lagging_results)
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    assert results[-1].colors is not None
+    assert "colors" in results[-1].services_submitted

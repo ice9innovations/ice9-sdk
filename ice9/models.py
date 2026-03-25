@@ -8,6 +8,38 @@ import warnings
 _SERVICE_STRIP_FIELDS = frozenset({"service", "status"})
 
 
+def _unwrap_service_entry(entry: dict) -> dict:
+    """Return a service payload suitable for ServiceResult.
+
+    The API may return terminal failed artifacts as:
+
+        {"status": "failed", "error_message": "...", "data": None}
+
+    Preserve that terminal metadata instead of collapsing the entry to an
+    empty dict just because the structured ``data`` payload is null.
+    """
+    if not isinstance(entry, dict):
+        return entry or {}
+
+    if 'data' not in entry:
+        return entry
+
+    data = entry.get('data')
+    metadata = {
+        key: value
+        for key, value in entry.items()
+        if key not in {'data', 'processing_time'}
+    }
+
+    if isinstance(data, dict):
+        return {**metadata, **data}
+
+    if data is None:
+        return metadata
+
+    return {**metadata, 'value': data}
+
+
 class ServiceResult:
     """Wraps a service's result data dict with attribute access.
 
@@ -185,7 +217,7 @@ class AnalysisResult:
 
         service_results = {
             name: ServiceResult(
-                data=entry.get('data') if 'data' in entry else entry,
+                data=_unwrap_service_entry(entry),
                 processing_time=entry.get('processing_time'),
             )
             for name, entry in raw_service_results.items()
@@ -198,7 +230,7 @@ class AnalysisResult:
             if top_level_key not in service_results and data.get(top_level_key):
                 entry = data[top_level_key]
                 service_results[top_level_key] = ServiceResult(
-                    data=entry,
+                    data=_unwrap_service_entry(entry),
                     processing_time=entry.get('processing_time'),
                 )
 
@@ -223,9 +255,8 @@ class AnalysisResult:
 
                 if len(entries) == 1:
                     entry = entries[0]
-                    entry_data = entry.get('data') if 'data' in entry else entry
                     service_results[name] = ServiceResult(
-                        data=entry_data,
+                        data=_unwrap_service_entry(entry),
                         processing_time=entry.get('processing_time'),
                     )
                 else:
@@ -235,7 +266,7 @@ class AnalysisResult:
                     # UI can associate palettes with their source bounding box.
                     all_predictions = []
                     for entry in entries:
-                        entry_data = entry.get('data') if 'data' in entry else entry
+                        entry_data = _unwrap_service_entry(entry)
                         cluster_id = entry_data.get('cluster_id')
                         for pred in (entry_data.get('predictions') or []):
                             all_predictions.append(
@@ -267,7 +298,7 @@ class AnalysisResult:
         # before reaching here, so accumulated never contains raw postprocessing keys.
         service_results = {
             name: ServiceResult(
-                data=entry.get('data') if 'data' in entry else entry,
+                data=_unwrap_service_entry(entry),
                 processing_time=entry.get('processing_time'),
             )
             for name, entry in accumulated.items()

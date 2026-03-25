@@ -165,6 +165,22 @@ STATUS_COMPLETE_BASIC = {
     "postprocessing": [],
 }
 
+STATUS_COMPLETE_WITH_TERMINAL_FAILURE = {
+    **STATUS_COMPLETE,
+    "services_failed": {"pose": "worker returned terminal failure"},
+    "service_results": {
+        **STATUS_COMPLETE["service_results"],
+        "pose": {
+            "status": "failed",
+            "error_message": "worker returned terminal failure",
+            "data": None,
+            "processing_time": 0.3,
+            "result_created": "2026-03-08T12:00:02",
+        },
+    },
+    "services_submitted": [*STATUS_COMPLETE["services_submitted"], "pose"],
+}
+
 TIERS_RESPONSE = {
     "tiers": {
         "free":    ["colors", "metadata", "nudenet", "ocr", "qr"],

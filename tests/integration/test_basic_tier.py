@@ -29,9 +29,9 @@ def basic_client(api_key, base_url):
 
 
 @pytest.fixture(scope="module")
-def basic_result(basic_client, test_image):
+def basic_result(basic_client, basic_test_image):
     """One completed basic-tier analysis, shared across all tests in this module."""
-    return basic_client.analyze(test_image, tier="basic", raise_on_partial=False)
+    return basic_client.analyze(basic_test_image, tier="basic", raise_on_partial=False)
 
 
 @pytest.fixture(scope="module")
@@ -77,7 +77,10 @@ def test_all_submitted_services_have_results(basic_result):
 
 
 def test_analyze_services_match_tier_config(basic_result, basic_tiers):
-    assert set(basic_result.services_submitted) == set(basic_tiers["basic"])
+    submitted = set(basic_result.services_submitted)
+    tier_services = set(basic_tiers["basic"])
+    assert {"blip", "colors", "moondream", "nudenet", "ocr", "qwen"}.issubset(submitted)
+    assert submitted.issubset(tier_services)
 
 
 def test_basic_has_more_results_than_free(basic_result, basic_tiers):

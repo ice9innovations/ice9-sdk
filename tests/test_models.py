@@ -5,7 +5,11 @@ import pytest
 
 from ice9.models import AnalysisResult, ServiceResult
 
-from .conftest import STATUS_COMPLETE, STATUS_COMPLETE_BASIC
+from .conftest import (
+    STATUS_COMPLETE,
+    STATUS_COMPLETE_BASIC,
+    STATUS_COMPLETE_WITH_TERMINAL_FAILURE,
+)
 
 
 def _load_fixture(name: str) -> dict:
@@ -162,6 +166,16 @@ def test_from_status_warns_on_failed_services():
 
     assert result.nudenet is None
     assert result.colors is not None
+
+
+def test_from_status_preserves_terminal_failure_metadata_when_data_is_null():
+    with pytest.warns(UserWarning, match="pose"):
+        result = AnalysisResult._from_status(STATUS_COMPLETE_WITH_TERMINAL_FAILURE)
+
+    assert result.pose is not None
+    assert result.pose.status == "failed"
+    assert result.pose.error_message == "worker returned terminal failure"
+    assert result.pose.processing_time == 0.3
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +351,14 @@ def test_to_dict_does_not_include_internal_api_fields():
     for internal in ("service_dispatch", "downstream_pending", "primary_complete",
                      "consensus_complete", "vlm_services", "progress"):
         assert internal not in d
+
+
+def test_to_dict_preserves_terminal_failure_error_message():
+    with pytest.warns(UserWarning, match="pose"):
+        result = AnalysisResult._from_status(STATUS_COMPLETE_WITH_TERMINAL_FAILURE)
+
+    service_dict = result.to_dict()["services"]["pose"]
+    assert service_dict["error_message"] == "worker returned terminal failure"
 
 
 def test_current_api_status_fixture_parses_without_drift():
