@@ -18,11 +18,6 @@ CENSOR_LABELS: frozenset[str] = frozenset({
     "ANUS_EXPOSED",
 })
 
-# The API normalizes uploads to this maximum dimension before running workers.
-# Bounding box coordinates are in that normalized space.
-_API_MAX_DIMENSION = 1024
-
-
 def censor(
     result: AnalysisResult,
     image: str | Path,
@@ -75,14 +70,6 @@ def censor(
     img = Image.open(image).convert("RGB")
     orig_w, orig_h = img.size
 
-    # The API resizes to _API_MAX_DIMENSION on the longest side before processing.
-    # Scale bbox coordinates back to original image space.
-    longest = max(orig_w, orig_h)
-    if longest > _API_MAX_DIMENSION:
-        bbox_scale = longest / _API_MAX_DIMENSION
-    else:
-        bbox_scale = 1.0
-
     for pred in predictions:
         if pred.get("label") not in effective_labels:
             continue
@@ -90,10 +77,10 @@ def censor(
             continue
 
         raw = pred["bbox"]
-        x1 = int(raw["x"] * bbox_scale)
-        y1 = int(raw["y"] * bbox_scale)
-        x2 = int((raw["x"] + raw["width"]) * bbox_scale)
-        y2 = int((raw["y"] + raw["height"]) * bbox_scale)
+        x1 = int(raw["x"])
+        y1 = int(raw["y"])
+        x2 = int(raw["x"] + raw["width"])
+        y2 = int(raw["y"] + raw["height"])
 
         # Clamp to image bounds
         x1, y1 = max(0, x1), max(0, y1)

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.13] - 2026-03-24
+
+### Fixed
+- `result.censor()` now treats NudeNet bounding boxes as already being in original-image space
+  - Removed the old client-side `_API_MAX_DIMENSION` compensation logic
+  - Prevents double-scaling censor regions after the API coordinate-space normalization change
+
 ## [0.0.12] - 2026-03-23
 
 ### Added

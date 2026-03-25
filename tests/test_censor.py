@@ -2,7 +2,7 @@ import copy
 import pytest
 
 from ice9 import CENSOR_LABELS
-from ice9.censor import censor, _API_MAX_DIMENSION
+from ice9.censor import censor
 from ice9.exceptions import Ice9Error
 from ice9.models import AnalysisResult
 
@@ -62,7 +62,7 @@ def small_image(tmp_path):
 
 @pytest.fixture
 def large_image(tmp_path):
-    """A 2048x1536 image — larger than _API_MAX_DIMENSION, scaling required."""
+    """A 2048x1536 image with original-space API coordinates."""
     from PIL import Image
     path = tmp_path / "large.jpg"
     Image.new("RGB", (2048, 1536), color=(200, 180, 160)).save(path)
@@ -187,14 +187,13 @@ def test_censor_min_confidence_zero_includes_all(result_with_nudenet, small_imag
 # censor() — coordinate scaling
 
 def test_censor_scales_bboxes_for_large_image(result_with_nudenet, large_image):
-    """For a 2048x1536 image the API normalizes to 1024x768. Bboxes must scale ~2x."""
-    from PIL import Image
+    """Large images should use API bboxes as-is, without client-side compensation."""
     img = result_with_nudenet.censor(large_image, method="fill")
-    # Breast bbox in API space: x=100, y=100, w=80, h=90
-    # Scale = 2048/1024 = 2.0 → in original space: x=200, y=200, w=160, h=180
-    # Centre ≈ (280, 290) should be black
-    r, g, b = img.getpixel((280, 290))
+    # Breast bbox is already in original-image space: x=100, y=100, w=80, h=90.
+    r, g, b = img.getpixel((140, 145))
     assert r == 0 and g == 0 and b == 0
+    # Old client-side compensation would have shifted censoring to ~2x these coords.
+    assert img.getpixel((280, 290)) != (0, 0, 0)
 
 
 def test_censor_no_scaling_for_small_image(result_with_nudenet, small_image):
