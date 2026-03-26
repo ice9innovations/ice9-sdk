@@ -12,7 +12,13 @@ from ice9.exceptions import (
     RateLimitError,
 )
 
-from .conftest import ANALYZE_RESPONSE, SERVICES_RESPONSE, STATUS_COMPLETE, TIERS_RESPONSE
+from .conftest import (
+    ANALYZE_RESPONSE,
+    SERVICES_RESPONSE,
+    STATUS_COMPLETE,
+    STATUS_COMPLETE_BASIC,
+    TIERS_RESPONSE,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -613,3 +619,58 @@ async def test_stream_preserves_already_observed_services_if_results_lags(respx_
 
     assert results[-1].colors is not None
     assert "colors" in results[-1].services_submitted
+
+
+async def test_stream_retries_results_when_status_shows_completed_downstream_services(respx_mock, png_file):
+    import copy
+    import json as _json
+
+    lagging_results = copy.deepcopy(STATUS_COMPLETE)
+    status_complete = copy.deepcopy(STATUS_COMPLETE_BASIC)
+    results_complete = copy.deepcopy(STATUS_COMPLETE_BASIC)
+
+    lagging_results["service_results"].pop("noun_consensus", None)
+    lagging_results["services_submitted"] = [
+        service for service in lagging_results["services_submitted"] if service != "noun_consensus"
+    ]
+    status_complete["service_results"].pop("noun_consensus", None)
+    status_complete["services_submitted"] = [
+        service for service in status_complete["services_submitted"] if service != "noun_consensus"
+    ]
+
+    status_complete["current_service_events"] = [
+        {
+            "event_type": "completed",
+            "service": "noun_consensus",
+            "source_service": "primary.florence2",
+            "source_stage": "noun_consensus_run",
+            "data": {"services_present": ["moondream", "qwen"]},
+        }
+    ]
+
+    sse_body = (
+        b"event: complete\n"
+        b"data: " + _json.dumps(lagging_results).encode() + b"\n\n"
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
+    )
+    results_route = respx_mock.get(f"{BASE}/results/42").mock(
+        side_effect=[
+            httpx.Response(200, json=lagging_results),
+            httpx.Response(200, json=results_complete),
+        ]
+    )
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=status_complete))
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    assert results[-1].noun_consensus is not None
+    assert "noun_consensus" in results[-1].services_submitted
+    assert len(results_route.calls) == 2

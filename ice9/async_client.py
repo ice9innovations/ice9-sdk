@@ -42,6 +42,7 @@ class AsyncIce9:
     DEFAULT_TIMEOUT = 30.0
     POLL_INTERVAL = 0.25
     DEFAULT_MAX_RETRIES = 3
+    STREAM_FINALIZATION_GRACE = 2.0
 
     def __init__(
         self,
@@ -450,6 +451,103 @@ class AsyncIce9:
         raw["services_submitted"] = merged_services_submitted
         return AnalysisResult._from_status(raw)
 
+    def _merge_status_service_results(
+        self,
+        result: AnalysisResult,
+        status: dict,
+    ) -> AnalysisResult:
+        """Preserve service results already visible on /status."""
+        service_results = status.get("service_results") or {}
+        if not service_results:
+            return result
+
+        raw = dict(result._raw)
+        merged_service_results = dict(raw.get("service_results") or {})
+        changed = False
+
+        for service, entry in service_results.items():
+            if service not in merged_service_results:
+                merged_service_results[service] = entry
+                changed = True
+
+        merged_services_submitted = list(raw.get("services_submitted") or [])
+        for service in service_results:
+            if service not in merged_services_submitted:
+                merged_services_submitted.append(service)
+                changed = True
+
+        if not changed:
+            return result
+
+        raw["service_results"] = merged_service_results
+        raw["services_submitted"] = merged_services_submitted
+        return AnalysisResult._from_status(raw)
+
+    def _completed_services_from_status(self, status: dict) -> set[str]:
+        completed = set((status.get("service_results") or {}).keys())
+        for event in status.get("current_service_events") or []:
+            if event.get("event_type") == "completed" and event.get("service"):
+                completed.add(event["service"])
+        return completed
+
+    async def _finalize_stream_result(
+        self,
+        image_id: int,
+        accumulated: dict,
+        inactivity_timeout: float,
+    ) -> AnalysisResult:
+        """Fetch a canonical final result, tolerating brief /results lag after complete."""
+        final = await self.get_result(image_id)
+        final = self._merge_stream_accumulated_results(final, accumulated)
+
+        try:
+            status = await self.get_status(image_id)
+        except Exception as exc:
+            logger.debug(
+                "Stream finalization could not fetch /status for image %s: %s",
+                image_id,
+                exc,
+            )
+            return final
+
+        expected_services = self._completed_services_from_status(status)
+        final = self._merge_status_service_results(final, status)
+        missing_services = expected_services - set((final._raw.get("service_results") or {}).keys())
+        if not missing_services:
+            return final
+
+        grace_deadline = time.monotonic() + min(inactivity_timeout, self.STREAM_FINALIZATION_GRACE)
+        while missing_services and time.monotonic() < grace_deadline:
+            remaining = grace_deadline - time.monotonic()
+            if remaining <= 0:
+                break
+
+            await _async_sleep(min(self.POLL_INTERVAL, remaining))
+
+            try:
+                refreshed = await self.get_result(image_id)
+            except Exception as exc:
+                logger.debug(
+                    "Stream finalization retry failed for image %s: %s",
+                    image_id,
+                    exc,
+                )
+                break
+
+            refreshed = self._merge_stream_accumulated_results(refreshed, accumulated)
+            refreshed = self._merge_status_service_results(refreshed, status)
+            final = refreshed
+            missing_services = expected_services - set((final._raw.get("service_results") or {}).keys())
+
+        if missing_services:
+            logger.debug(
+                "Stream finalization for image %s is still missing services after grace window: %s",
+                image_id,
+                sorted(missing_services),
+            )
+
+        return final
+
     async def _upload(self, image: str | Path | BinaryIO, tier: str | None, image_group: str) -> int:
         if isinstance(image, (str, Path)):
             image_str = str(image)
@@ -694,8 +792,11 @@ class AsyncIce9:
                                         accumulated[service] = result
                                     yield AnalysisResult._from_partial(image_id, accumulated)
                                 elif current_event == "complete":
-                                    final = await self.get_result(image_id)
-                                    final = self._merge_stream_accumulated_results(final, accumulated)
+                                    final = await self._finalize_stream_result(
+                                        image_id,
+                                        accumulated,
+                                        inactivity_timeout,
+                                    )
                                     yield self._handle_partial_result(final, raise_on_partial)
                                     return
                                 elif current_event == "timeout":

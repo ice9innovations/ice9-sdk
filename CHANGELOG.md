@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [0.0.15] - 2026-03-26
+
+### Fixed
+- Streaming finalization in both `Ice9` and `AsyncIce9` now treats `/status` as an additional source of truth after a stream `complete` event
+  - Missing downstream services already materialized on `/status` are merged into the final `AnalysisResult`
+  - If `/status` shows completed downstream services but `/results` is still stale, the SDK now retries `/results` briefly within a bounded grace window
+- Added sync and async regressions for the stale-final `/results` race seen after downstream completion
+
 ## [0.0.14] - 2026-03-25
 
 ### Changed
