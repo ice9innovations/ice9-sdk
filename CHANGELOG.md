@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (loosely, while in 0.x).
 
+## [Unreleased]
+
+### Changed
+- Reverted the stream-side `0.0.15` hedge that treated `/status` as a second truth source after SSE `complete`
+  - The SDK no longer runs a grace-window retry of `/results` after stream completion
+  - Streamed final results trust the API's `complete` payload again, with accumulated `service_complete` data merged in as before
+
 ## [0.0.15] - 2026-03-26
 
 ### Fixed
