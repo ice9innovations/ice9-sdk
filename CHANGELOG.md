@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.17] - 2026-03-28
+
+### Fixed
+- Restored canonical stream finalization in both `Ice9` and `AsyncIce9`
+  - Terminal SSE `complete` events now fetch `/results/<image_id>` again before yielding the final `AnalysisResult`
+  - Accumulated `service_complete` results are still merged back in as a safety net if canonical `/results` briefly lags behind the stream
+  - Prevents streamed final results from being under-shaped when the SSE `complete` payload is less complete than `/results`
+
+### Changed
+- Strengthened sync and async stream tests so they pin the contract instead of mirroring the implementation
+  - Added explicit regressions that prove the final streamed result comes from canonical `/results`
+  - Added async coverage for partial-result counts, intermediate `is_complete=False`, and accumulation across `service_complete` events
+
 ## [0.0.16] - 2026-03-27
 
 ### Changed

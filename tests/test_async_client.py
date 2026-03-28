@@ -490,24 +490,33 @@ async def test_raise_on_partial_false_logs_warning(respx_mock, png_file, caplog)
 
 # ---------------------------------------------------------------------------
 # analyze(stream=True)
-# Note: Full streaming tests are complex with httpx mocking.
-# These tests verify the basic structure. Integration tests cover the full flow.
+
+import json as _json
+
+
+def _make_sse_body(*events):
+    parts = []
+    for event_type, data in events:
+        parts.append(f"event: {event_type}\ndata: {_json.dumps(data)}\n\n")
+    return "".join(parts).encode()
+
+
+_ASYNC_STREAM_COMPLETE_PAYLOAD = {
+    **STATUS_COMPLETE,
+    "is_complete": True,
+}
+
+_ASYNC_SSE_HAPPY_PATH = _make_sse_body(
+    ("service_complete", {"service": "nudenet", "result": {"detections": []}}),
+    ("service_complete", {"service": "colors", "result": {"dominant": ["#ffffff"]}}),
+    ("complete", _ASYNC_STREAM_COMPLETE_PAYLOAD),
+)
 
 async def test_stream_returns_async_generator(respx_mock, png_file):
-    """Verify that stream=True returns an async generator."""
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
 
-    # Mock SSE stream
-    import json as _json
-    sse_body = (
-        b"event: service_complete\n"
-        b"data: " + _json.dumps({"service": "nudenet", "result": {"detections": []}}).encode() + b"\n\n"
-        b"event: complete\n"
-        b"data: " + _json.dumps({**STATUS_COMPLETE, "is_complete": True}).encode() + b"\n\n"
-    )
-
     respx_mock.get(f"{BASE}/stream/42").mock(
-        return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
+        return_value=httpx.Response(200, content=_ASYNC_SSE_HAPPY_PATH, headers={"Content-Type": "text/event-stream"})
     )
     mock_final_result(respx_mock)
 
@@ -522,20 +531,89 @@ async def test_stream_returns_async_generator(respx_mock, png_file):
         assert results[-1].is_complete is True
 
 
+async def test_stream_yields_partial_results(respx_mock, png_file):
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=_ASYNC_SSE_HAPPY_PATH, headers={"Content-Type": "text/event-stream"})
+    )
+    mock_final_result(respx_mock)
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    assert len(results) == 3
+
+
+async def test_stream_partial_yields_have_is_complete_false(respx_mock, png_file):
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=_ASYNC_SSE_HAPPY_PATH, headers={"Content-Type": "text/event-stream"})
+    )
+    mock_final_result(respx_mock)
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    assert results[0].is_complete is False
+    assert results[1].is_complete is False
+    assert results[2].is_complete is True
+
+
+async def test_stream_partial_results_accumulate(respx_mock, png_file):
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=_ASYNC_SSE_HAPPY_PATH, headers={"Content-Type": "text/event-stream"})
+    )
+    mock_final_result(respx_mock)
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    assert results[0].nudenet is not None
+    assert results[0].colors is None
+    assert results[1].nudenet is not None
+    assert results[1].colors is not None
+
+
+async def test_stream_final_result_is_terminal_and_complete(respx_mock, png_file):
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=_ASYNC_SSE_HAPPY_PATH, headers={"Content-Type": "text/event-stream"})
+    )
+    mock_final_result(respx_mock)
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    final = results[-1]
+    assert final.image_id == 42
+    assert final.is_complete is True
+    assert final.services_failed == {}
+    assert final.content_analysis is not None
+
+
 async def test_stream_final_result_fills_missing_services_submitted_from_accumulated_events(respx_mock, png_file):
     import copy
-    import json as _json
 
     final_payload = copy.deepcopy(STATUS_COMPLETE)
     final_payload["services_submitted"] = []
 
-    sse_body = (
-        b"event: service_complete\n"
-        b"data: " + _json.dumps({"service": "nudenet", "result": {"detections": []}}).encode() + b"\n\n"
-        b"event: service_complete\n"
-        b"data: " + _json.dumps({"service": "colors", "result": {"dominant": ["#ffffff"]}}).encode() + b"\n\n"
-        b"event: complete\n"
-        b"data: " + _json.dumps(final_payload).encode() + b"\n\n"
+    sse_body = _make_sse_body(
+        ("service_complete", {"service": "nudenet", "result": {"detections": []}}),
+        ("service_complete", {"service": "colors", "result": {"dominant": ["#ffffff"]}}),
+        ("complete", final_payload),
     )
 
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
@@ -553,6 +631,38 @@ async def test_stream_final_result_fills_missing_services_submitted_from_accumul
     final = results[-1]
     assert final.is_complete is True
     assert set(final.services_submitted) >= {"nudenet", "colors"}
+
+
+async def test_stream_complete_fetches_canonical_results_payload(respx_mock, png_file):
+    import copy
+
+    complete_payload = copy.deepcopy(STATUS_COMPLETE)
+    complete_payload["service_results"].pop("content_analysis", None)
+
+    canonical_payload = copy.deepcopy(STATUS_COMPLETE)
+
+    sse_body = _make_sse_body(
+        ("service_complete", {"service": "nudenet", "result": {"detections": []}}),
+        ("complete", complete_payload),
+    )
+
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(200, content=sse_body, headers={"Content-Type": "text/event-stream"})
+    )
+    results_route = respx_mock.get(f"{BASE}/results/42").mock(
+        return_value=httpx.Response(200, json=canonical_payload)
+    )
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        results = []
+        async for result in generator:
+            results.append(result)
+
+    final = results[-1]
+    assert results_route.called
+    assert final.content_analysis is not None
 
 
 async def test_analyze_fetches_results_after_status_complete(respx_mock, png_file):

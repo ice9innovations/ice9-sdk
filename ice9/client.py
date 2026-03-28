@@ -453,6 +453,15 @@ class Ice9:
         raw["services_submitted"] = merged_services_submitted
         return AnalysisResult._from_status(raw)
 
+    def _finalize_stream_result(
+        self,
+        image_id: int,
+        accumulated: dict,
+    ) -> AnalysisResult:
+        """Fetch the canonical final result after a terminal SSE complete event."""
+        final = self.get_result(image_id)
+        return self._merge_stream_accumulated_results(final, accumulated)
+
     def _upload(self, image: str | Path | BinaryIO, tier: str | None, image_group: str) -> int:
         if isinstance(image, (str, Path)):
             image_str = str(image)
@@ -674,8 +683,7 @@ class Ice9:
                                         accumulated[service] = result
                                     yield AnalysisResult._from_partial(image_id, accumulated)
                                 elif current_event == "complete":
-                                    final = AnalysisResult._from_status(payload)
-                                    final = self._merge_stream_accumulated_results(final, accumulated)
+                                    final = self._finalize_stream_result(image_id, accumulated)
                                     yield self._handle_partial_result(final, raise_on_partial)
                                     return
                                 elif current_event == "timeout":
