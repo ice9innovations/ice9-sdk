@@ -39,9 +39,8 @@ def main(image_id):
 
     print(f"Success! Retrieved analysis for image {result.image_id}\n")
     print(f"Services: {', '.join(result.services_submitted)}")
-    print(f"Image filename: {result.raw.get('image_filename', 'N/A')}")
-    print(f"Image group: {result.raw.get('image_group', 'N/A')}")
-    print(f"Analyzed at: {result.raw.get('image_created', 'N/A')}")
+    print(f"Image filename: {result.image_filename or 'N/A'}")
+    print(f"Analyzed at: {result.image_created or 'N/A'}")
 
     if result.services_failed:
         print(f"\nFailed services: {result.services_failed}")

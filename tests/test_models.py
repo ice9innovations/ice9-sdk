@@ -312,11 +312,6 @@ def test_to_json_accepts_indent():
     assert "\n" in pretty
 
 
-def test_raw_returns_original_payload():
-    result = AnalysisResult._from_status(STATUS_COMPLETE)
-    assert result.raw is STATUS_COMPLETE
-
-
 def test_caption_prefers_caption_summary():
     result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
     assert result.caption == "A dog is sitting on a hardwood floor."

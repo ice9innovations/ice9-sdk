@@ -167,7 +167,6 @@ image.nouns.validated            # validated / grounded noun subset
 image.nouns.regions              # grounding regions associated with nouns
 image.verbs.consensus            # verb consensus list when available
 image.services.nudenet           # advanced service-level access
-image.raw                        # original API payload
 ```
 
 For moderation-oriented flows, the main path is:
@@ -220,12 +219,6 @@ Accessing a service that didn't run returns `None`.
 
 `image.caption` may be `None` on the baseline tier. It becomes useful on tiers
 that include captioning services.
-
-For raw API compatibility or debugging, use:
-
-```python
-image.raw
-```
 
 ### Serializing results
 

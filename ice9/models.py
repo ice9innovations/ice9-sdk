@@ -184,7 +184,7 @@ class SceneResult:
         self.intimacy = intimacy
         self.activities = sorted(activities or [])
         self.anatomy_exposed = anatomy_exposed or []
-        self.raw = raw or {}
+        self._raw = raw or {}
 
     def __bool__(self) -> bool:
         return any((
@@ -365,11 +365,6 @@ class AnalysisResult:
         ``indent=2`` for pretty-printing.
         """
         return json.dumps(self.to_dict(), default=str, **kwargs)
-
-    @property
-    def raw(self) -> dict:
-        """Return the raw API payload for advanced use cases."""
-        return self._raw
 
     @property
     def services(self) -> ServicesResult:
