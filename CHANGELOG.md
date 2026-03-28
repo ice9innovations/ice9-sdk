@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-03-28
+
+### Removed
+- Removed public `.raw` access from the SDK surface
+  - `AnalysisResult.raw` and `SceneResult.raw` are no longer exposed as public convenience fields
+  - README and examples no longer teach raw-payload access as part of normal SDK usage
+  - Internal `_raw` storage remains in place so lower-level compatibility work can still happen deliberately later
+
 ## [0.0.17] - 2026-03-28
 
 ### Fixed
