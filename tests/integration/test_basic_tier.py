@@ -3,7 +3,7 @@ Integration tests — basic tier.
 
 Verifies that the SDK works end-to-end for the basic tier, which includes
 VLM services (blip, florence2, moondream, ollama, qwen) in addition to the
-fast services present in free. VLMs take longer, so a higher timeout is used.
+free-tier moderation baseline. VLMs take longer, so a higher timeout is used.
 
 Run with:
     ICE9_API_KEY=ice9_... pytest tests/integration/test_basic_tier.py -v
@@ -67,6 +67,31 @@ def test_analyze_basic_tier_only_allows_known_backend_failures(basic_result):
 
 def test_analyze_nudenet_is_present(basic_result):
     assert basic_result.nudenet is not None
+
+
+def test_basic_tier_inherits_nsfw_helpers(basic_result):
+    assert isinstance(basic_result.nsfw_detections(), list)
+    assert isinstance(basic_result.has_nsfw(), bool)
+
+
+def test_basic_tier_exposes_image_level_product_fields(basic_result):
+    assert basic_result.is_nsfw in {True, False, None}
+    assert basic_result.moderation.reason
+    if basic_result.scene is not None:
+        assert basic_result.scene.type is None or isinstance(basic_result.scene.type, str)
+        assert basic_result.scene.intimacy is None or isinstance(basic_result.scene.intimacy, str)
+    assert basic_result.caption is None or isinstance(basic_result.caption, str)
+    if basic_result.nouns is not None:
+        assert isinstance(basic_result.nouns.consensus, list)
+        assert isinstance(basic_result.nouns.validated, list)
+        assert isinstance(basic_result.nouns.regions, list)
+    if basic_result.verbs is not None:
+        assert isinstance(basic_result.verbs.consensus, list)
+
+
+def test_basic_tier_exposes_services_namespace(basic_result):
+    assert basic_result.services.nudenet is basic_result.nudenet
+    assert "nudenet" in basic_result.services.names()
 
 
 def test_all_submitted_services_have_results(basic_result):

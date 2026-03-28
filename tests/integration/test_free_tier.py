@@ -2,8 +2,9 @@
 Integration tests — free tier.
 
 Verifies that the SDK works end-to-end against the real API using a free-tier
-key. All five free-tier services (nudenet, colors, metadata, ocr, qr) should
-complete within a few seconds.
+key. The free tier is treated as the moderation baseline, so nudenet must be
+present and the inherited utility services (colors, metadata, ocr, qr) should
+also complete within a few seconds.
 
 Run with:
     ICE9_API_KEY=ice9_... pytest tests/integration/test_free_tier.py -v
@@ -83,6 +84,24 @@ def test_analyze_free_tier_is_complete(free_result):
 
 def test_analyze_nudenet_is_present(free_result):
     assert free_result.nudenet is not None
+
+
+def test_free_tier_exposes_nsfw_helpers(free_result):
+    assert isinstance(free_result.nsfw_detections(), list)
+    assert isinstance(free_result.has_nsfw(), bool)
+
+
+def test_free_tier_exposes_image_level_moderation_surface(free_result):
+    assert free_result.is_nsfw in {True, False, None}
+    assert free_result.moderation.reason
+    if free_result.scene is not None:
+        assert free_result.scene.type is None or isinstance(free_result.scene.type, str)
+        assert free_result.scene.intimacy is None or isinstance(free_result.scene.intimacy, str)
+
+
+def test_free_tier_exposes_services_namespace(free_result):
+    assert free_result.services.nudenet is free_result.nudenet
+    assert "nudenet" in free_result.services.names()
 
 
 def test_all_submitted_services_have_results(free_result):

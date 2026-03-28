@@ -54,17 +54,17 @@ def main(image_path):
     # -----------------------------------------------------------------------
     # Summary caption
 
-    if result.caption_summary is not None:
-        print(f"Summary: {result.caption_summary.summary_caption}")
+    if result.caption:
+        print(f"Summary: {result.caption}")
         print()
 
     # -----------------------------------------------------------------------
     # Validated nouns
     # With more models voting, confidence here is higher than basic tier.
 
-    if result.noun_consensus is not None:
+    if result.nouns is not None:
         print("Validated nouns:")
-        for noun in result.noun_consensus.nouns:
+        for noun in result.nouns.validated:
             confirmed = "(confirmed)" if noun["grounding_validated"] else ""
             print(f"  {noun['canonical']:20s}  votes={noun['vote_count']}  {confirmed}")
         print()
@@ -104,10 +104,10 @@ def main(image_path):
     # -----------------------------------------------------------------------
     # Florence-2 bounding boxes
 
-    if result.florence2_grounding is not None:
-        if result.florence2_grounding.predictions:
-            print(f"Florence-2 grounded regions ({len(result.florence2_grounding.predictions)} total):")
-            for region in result.florence2_grounding.predictions:
+    if result.nouns is not None:
+        if result.nouns.regions:
+            print(f"Florence-2 grounded regions ({len(result.nouns.regions)} total):")
+            for region in result.nouns.regions:
                 label = region.get("label") or region.get("text") or "unknown"
                 bbox = region.get("bbox") or region.get("quad_box")
                 print(f"  {label:25s}  {bbox}")
@@ -116,19 +116,14 @@ def main(image_path):
     # -----------------------------------------------------------------------
     # Content moderation
 
-    if result.nudenet is not None:
-        flagged = []
-        for detection in result.nudenet.predictions:
-            if detection["label"] in CENSOR_LABELS and detection["confidence"] >= 0.5:
-                flagged.append(detection)
-
-        if flagged:
-            print(f"Content moderation — {len(flagged)} flagged detection(s):")
-            for detection in flagged:
-                print(f"  {detection['label']}  confidence={detection['confidence']:.0%}")
-        else:
-            print("Content moderation — no flagged detections")
-        print()
+    flagged = result.nsfw_detections(labels=CENSOR_LABELS)
+    if flagged:
+        print(f"Content moderation — {len(flagged)} flagged detection(s):")
+        for detection in flagged:
+            print(f"  {detection['label']}  confidence={detection['confidence']:.0%}")
+    else:
+        print("Content moderation — no flagged detections")
+    print()
 
     # -----------------------------------------------------------------------
     # Full result as JSON

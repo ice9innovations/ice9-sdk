@@ -21,6 +21,7 @@ from .exceptions import (
 from .models import AnalysisResult
 
 logger = logging.getLogger("ice9")
+BASELINE_TIER = "free"
 
 
 class Ice9:
@@ -355,9 +356,10 @@ class Ice9:
         Args:
             image:            Path to an image file (str or Path), or an open binary
                               file object.
-            tier:             Processing tier. If omitted, the server applies the
-                              default for your API key. Use client.tiers() to see
-                              what is available.
+            tier:             Processing tier. If omitted, the SDK uses the
+                              baseline tier (currently ``"free"``). Higher tiers
+                              must be requested explicitly. Use client.tiers()
+                              to see what is available.
             image_group:      Tag for grouping images server-side. Defaults to 'api'.
             timeout:          Maximum seconds to wait for completion. Defaults to the
                               client's default_timeout.
@@ -386,6 +388,7 @@ class Ice9:
         """
         effective_timeout = timeout if timeout is not None else self._default_timeout
         deadline = time.monotonic() + effective_timeout
+        tier = tier or BASELINE_TIER
 
         image_id = self._upload(image, tier, image_group)
 
@@ -514,10 +517,9 @@ class Ice9:
     def _post_file(self, fileobj: BinaryIO, filename: str, tier: str | None, image_group: str) -> int:
         url = f"{self._base_url}/analyze"
         form_data: dict = {"image_group": image_group}
-        if tier is not None:
-            form_data["tier"] = tier
+        form_data["tier"] = tier
 
-        logger.debug(f"POST /analyze (tier={tier or 'default'}, file={filename})")
+        logger.debug(f"POST /analyze (tier={tier}, file={filename})")
 
         try:
             resp = self._client.post(

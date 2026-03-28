@@ -75,6 +75,31 @@ def test_service_result_predictions_returns_empty_list_when_none():
     assert sr.predictions == []
 
 
+def test_service_result_flagged_predictions_uses_default_moderation_labels():
+    sr = ServiceResult({
+        "predictions": [
+            {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+            {"label": "BELLY_EXPOSED", "confidence": 0.99},
+            {"label": "FEMALE_GENITALIA_EXPOSED", "confidence": 0.4},
+        ]
+    })
+    assert sr.flagged_predictions() == [
+        {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+    ]
+
+
+def test_service_result_flagged_predictions_accepts_custom_labels():
+    sr = ServiceResult({
+        "predictions": [
+            {"label": "BELLY_EXPOSED", "confidence": 0.99},
+            {"label": "ARMPITS_EXPOSED", "confidence": 0.8},
+        ]
+    })
+    assert sr.flagged_predictions(labels={"BELLY_EXPOSED"}) == [
+        {"label": "BELLY_EXPOSED", "confidence": 0.99},
+    ]
+
+
 def test_service_result_text_returns_predictions_text():
     sr = ServiceResult({"predictions": [{"text": "a dog on a floor"}]})
     assert sr.text == "a dog on a floor"
@@ -129,6 +154,13 @@ def test_service_attributes_are_service_results():
     assert isinstance(result.colors, ServiceResult)
 
 
+def test_services_namespace_exposes_service_results():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.services.nudenet is result.nudenet
+    assert result.services.colors is result.colors
+    assert "nudenet" in result.services.names()
+
+
 def test_service_data_is_accessible():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     assert result.nudenet.detections == []
@@ -150,6 +182,32 @@ def test_private_attributes_raise_attribute_error():
 def test_service_result_processing_time_from_status():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     assert result.nudenet.processing_time == 0.4
+
+
+def test_nsfw_detections_returns_filtered_nudenet_predictions():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    result.nudenet._data["predictions"] = [
+        {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+        {"label": "BELLY_EXPOSED", "confidence": 0.99},
+        {"label": "FEMALE_GENITALIA_EXPOSED", "confidence": 0.4},
+    ]
+    assert result.nsfw_detections() == [
+        {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+    ]
+
+
+def test_has_nsfw_true_when_flagged_detections_present():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    result.nudenet._data["predictions"] = [
+        {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+    ]
+    assert result.has_nsfw() is True
+
+
+def test_has_nsfw_false_without_nudenet():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    result._service_results.pop("nudenet")
+    assert result.has_nsfw() is False
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +312,77 @@ def test_to_json_accepts_indent():
     assert "\n" in pretty
 
 
+def test_raw_returns_original_payload():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.raw is STATUS_COMPLETE
+
+
+def test_caption_prefers_caption_summary():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    assert result.caption == "A dog is sitting on a hardwood floor."
+
+
+def test_caption_falls_back_to_first_text_service():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    result._service_results.pop("caption_summary", None)
+    assert result.caption == "a dog sitting on a wooden floor"
+
+
+def test_scene_is_derived_from_content_analysis():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.scene is not None
+    assert result.scene.type == "safe"
+    assert result.scene.intimacy == "none"
+    assert result.scene.activities == []
+    assert result.scene.activity is None
+
+
+def test_scene_activity_returns_single_activity_only():
+    import copy
+    status = copy.deepcopy(STATUS_COMPLETE)
+    result = AnalysisResult._from_status(status)
+    result.content_analysis._data["full_analysis"]["activity_analysis"]["activities"] = ["oral_sex"]
+    assert result.scene.activity == "oral_sex"
+
+
+def test_is_nsfw_false_when_nudenet_present_without_flags():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.is_nsfw is False
+    assert result.is_safe is True
+
+def test_is_nsfw_true_when_flagged_detections_present():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    result.nudenet._data["predictions"] = [
+        {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+    ]
+    assert result.is_nsfw is True
+    assert result.is_safe is False
+
+
+def test_is_nsfw_none_without_moderation_signals():
+    result = AnalysisResult._from_partial(1, {})
+    assert result.is_nsfw is None
+    assert result.is_safe is None
+
+
+def test_reason_describes_flagged_detections():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    result.nudenet._data["predictions"] = [
+        {"label": "FEMALE_BREAST_EXPOSED", "confidence": 0.9},
+    ]
+    assert "FEMALE_BREAST_EXPOSED" in result.moderation.reason
+
+
+def test_reason_uses_content_analysis_when_safe():
+    result = AnalysisResult._from_status(STATUS_COMPLETE)
+    assert result.moderation.reason == "Content analysis: scene=safe, intimacy=none."
+
+
+def test_reason_reports_missing_signal_when_unknown():
+    result = AnalysisResult._from_partial(1, {})
+    assert result.moderation.reason == "No moderation signal is available on this result."
+
+
 # ---------------------------------------------------------------------------
 # AnalysisResult — unwrapped service results (noun_consensus, caption_summary)
 
@@ -272,6 +401,26 @@ def test_noun_consensus_nouns_readable():
 def test_noun_consensus_grounding_validated():
     result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
     assert result.noun_consensus.nouns[0]["grounding_validated"] is True
+
+
+def test_nouns_namespace_exposes_consensus_and_validated_lists():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    assert result.nouns is not None
+    assert [noun["canonical"] for noun in result.nouns.consensus] == ["dog", "floor"]
+    assert [noun["canonical"] for noun in result.nouns.validated] == ["dog"]
+
+
+def test_nouns_regions_exposes_grounding_predictions():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    assert result.nouns is not None
+    assert result.nouns.regions == [
+        {"label": "dog", "bbox": {"x": 50, "y": 80, "width": 200, "height": 180}},
+    ]
+
+
+def test_verbs_namespace_none_when_no_verb_consensus():
+    result = AnalysisResult._from_status(STATUS_COMPLETE_BASIC)
+    assert result.verbs is None
 
 
 def test_caption_summary_accessible_as_attribute():

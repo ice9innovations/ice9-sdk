@@ -21,10 +21,10 @@ from ice9.exceptions import PartialResultError
 async def analyze_single(image_path: str):
     """Analyze a single image using async/await."""
     async with AsyncIce9() as client:
-        print(f"Submitting {image_path} to the free tier...")
+        print(f"Submitting {image_path} to the baseline tier...")
 
         try:
-            result = await client.analyze(image_path, tier="free")
+            result = await client.analyze(image_path)
         except PartialResultError as e:
             print(f"Warning: some services failed: {e.result.services_failed}")
             result = e.result
@@ -50,7 +50,7 @@ async def analyze_sequential(image_paths: list[str]):
             print(f"[{i}/{len(image_paths)}] Analyzing {image_path}...")
 
             try:
-                result = await client.analyze(image_path, tier="free")
+                result = await client.analyze(image_path)
                 print(f"  ✓ Image ID: {result.image_id}")
             except PartialResultError as e:
                 print(f"  ⚠ Partial result (some services failed)")
@@ -71,7 +71,7 @@ async def analyze_with_streaming(image_path: str):
         start = time.monotonic()
 
         try:
-            async for result in await client.analyze(image_path, tier="free", stream=True):
+            async for result in await client.analyze(image_path, stream=True):
                 elapsed = time.monotonic() - start
 
                 if result.is_complete:

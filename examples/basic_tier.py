@@ -9,7 +9,7 @@ What you get back:
   - A summary caption describing the image
   - A list of nouns the models agreed on (e.g. "dog", "person", "car")
   - Bounding boxes showing where those nouns are in the image
-  - A content moderation check
+  - The free-tier NSFW screening baseline
   - What each individual model said
 
 Usage:
@@ -44,8 +44,8 @@ def main(image_path):
     # Summary caption
     # A single description of the image, synthesised from all the AI models.
 
-    if result.caption_summary is not None:
-        print(f"Summary: {result.caption_summary.summary_caption}")
+    if result.caption:
+        print(f"Summary: {result.caption}")
         print()
 
     # -----------------------------------------------------------------------
@@ -54,9 +54,9 @@ def main(image_path):
     # as grounding_validated were also confirmed by Florence-2, which found
     # matching regions in the image — so we're extra confident about those.
 
-    if result.noun_consensus is not None:
+    if result.nouns is not None:
         print("Nouns found in this image:")
-        for noun in result.noun_consensus.nouns:
+        for noun in result.nouns.validated:
             if noun["grounding_validated"]:
                 note = "(confirmed)"
             else:
@@ -68,33 +68,28 @@ def main(image_path):
     # Bounding boxes
     # Florence-2 found these regions in the image, one per noun phrase.
 
-    if result.florence2_grounding is not None:
-        if result.florence2_grounding.predictions:
-            print(f"Regions found by Florence-2 ({len(result.florence2_grounding.predictions)} total):")
-            for region in result.florence2_grounding.predictions:
+    if result.nouns is not None:
+        if result.nouns.regions:
+            print(f"Regions found by Florence-2 ({len(result.nouns.regions)} total):")
+            for region in result.nouns.regions:
                 label = region.get("label") or region.get("text") or "unknown"
                 bbox = region.get("bbox") or region.get("quad_box")
                 print(f"  {label}  {bbox}")
             print()
 
     # -----------------------------------------------------------------------
-    # Content moderation
-    # nudenet checks for explicit content. Detections below 50% confidence
-    # are ignored.
+    # Free-tier moderation baseline
+    # Every higher tier inherits nudenet, so this helper works consistently
+    # across free, basic, and premium.
 
-    if result.nudenet is not None:
-        flagged = []
-        for detection in result.nudenet.predictions:
-            if detection["confidence"] >= 0.5:
-                flagged.append(detection)
-
-        if flagged:
-            print(f"Content moderation — {len(flagged)} flagged detection(s):")
-            for detection in flagged:
-                print(f"  {detection['label']}  confidence={detection['confidence']:.0%}")
-        else:
-            print("Content moderation — no flagged detections")
-        print()
+    flagged = result.nsfw_detections()
+    if flagged:
+        print(f"Content moderation — {len(flagged)} flagged detection(s):")
+        for detection in flagged:
+            print(f"  {detection['label']}  confidence={detection['confidence']:.0%}")
+    else:
+        print("Content moderation — no flagged detections")
+    print()
 
     # -----------------------------------------------------------------------
     # Individual model outputs

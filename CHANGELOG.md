@@ -8,7 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.16] - 2026-03-27
+
 ### Changed
+- Reshaped the SDK around image-level product concepts instead of raw service names
+  - Baseline `analyze()` now defaults to the included moderation tier unless a higher tier is requested explicitly
+  - Added image-level convenience fields and namespaces such as `image.is_nsfw`, `image.scene`, `image.moderation`, `image.caption`, `image.nouns`, `image.verbs`, `image.services`, and `image.raw`
+  - Updated README, examples, and notebooks to teach the product-shaped SDK surface first and relegate service-level access to advanced usage
+  - `image.scene` is ready to use, but some classification values still reflect the current upstream moderation taxonomy and may tighten as the service layer improves
 - Reverted the stream-side `0.0.15` hedge that treated `/status` as a second truth source after SSE `complete`
   - The SDK no longer runs a grace-window retry of `/results` after stream completion
   - Streamed final results trust the API's `complete` payload again, with accumulated `service_complete` data merged in as before

@@ -30,11 +30,13 @@ pip install ice9
 from ice9 import Ice9
 
 client = Ice9(api_key="ice9_...")
-result = client.analyze("photo.jpg")
+image = client.analyze("photo.jpg")
 
-print(result.nudenet)   # content moderation
-print(result.colors)    # dominant colors
-print(result.metadata)  # EXIF and file info
+if image.is_nsfw:
+    print(image.moderation.reason)
+    image.moderation.censor("photo.jpg", output="photo-censored.jpg")
+elif image.scene:
+    print(image.scene.type, image.scene.intimacy)
 ```
 
 **Asynchronous (FastAPI, Discord bots, async web apps):**
@@ -42,8 +44,9 @@ print(result.metadata)  # EXIF and file info
 from ice9 import AsyncIce9
 
 async with AsyncIce9(api_key="ice9_...") as client:
-    result = await client.analyze("photo.jpg")
-    print(result.nudenet)
+    image = await client.analyze("photo.jpg")
+    if image.is_nsfw:
+        print(image.moderation.reason)
 ```
 
 Both clients have identical APIs - just add `async`/`await` for the async version.
@@ -125,23 +128,104 @@ Pass a tier to `analyze()`:
 result = client.analyze("photo.jpg", tier="basic")
 ```
 
-If you omit `tier`, the server uses the default for your key.
+If you omit `tier`, the SDK uses the baseline tier.
+Higher tiers must be requested explicitly.
+
+The free tier is the foundation for the rest of the product: it provides the
+fast `nudenet` moderation pass and its derived `content_analysis` summary.
+Higher tiers build on that baseline by adding more expensive captioning,
+grounding, and consensus services.
+
+That means the default call is the no-surprises path:
+
+```python
+image = client.analyze("photo.jpg")
+```
+
+Use an explicit tier only when you want to upgrade capability:
+
+```python
+image = client.analyze("photo.jpg", tier="basic")
+```
 
 ## Results
 
-Services that ran are accessible as attributes on the result:
+The SDK exposes image-level outcomes first:
 
 ```python
-result.nudenet.detections        # content moderation
-result.colors.dominant           # dominant colors
-result.yolo_v8.predictions       # object detection
-result.noun_consensus.nouns      # consensus nouns across all VLMs
-result.rembg.png_b64             # background removal matte (base64 PNG)
+image.is_nsfw                    # True, False, or None if unavailable
+image.is_safe                    # inverse of is_nsfw when available
+image.scene                      # product-shaped scene summary when available
+image.scene.type                 # e.g. "sfw", "sexually_explicit"
+image.scene.intimacy             # current intimacy classification from content analysis
+image.scene.activity             # single detected activity when there is exactly one
+image.moderation.reason          # short explanation of the moderation signal
+image.moderation.censor(...)     # redact flagged NudeNet regions
+image.caption                    # best available caption when available
+image.nouns.consensus            # noun consensus list
+image.nouns.validated            # validated / grounded noun subset
+image.nouns.regions              # grounding regions associated with nouns
+image.verbs.consensus            # verb consensus list when available
+image.services.nudenet           # advanced service-level access
+image.raw                        # original API payload
+```
+
+For moderation-oriented flows, the main path is:
+
+```python
+image = client.analyze("photo.jpg")
+
+if image.is_nsfw:
+    print(image.moderation.reason)
+    image.moderation.censor("photo.jpg", output="photo-censored.jpg")
+```
+
+Which fields are populated depends on your tier. The baseline tier focuses on
+moderation and scene understanding. Higher tiers add richer captioning,
+grounding, and consensus outputs on top of that baseline.
+
+`image.scene` is intentionally product-shaped, but its current semantics still
+depend on the upstream moderation taxonomy. Treat `type`, `intimacy`, and
+`activity` as stable convenience fields with evolving classification values,
+not as a frozen ontology. Future refinements should happen primarily in the
+service taxonomy rather than by forcing callers onto lower-level SDK plumbing.
+
+For basic and premium tiers, the higher-level namespaces are:
+
+```python
+image = client.analyze("photo.jpg", tier="basic")
+
+print(image.caption)
+
+for noun in image.nouns.validated:
+    print(noun["canonical"], noun["vote_count"])
+
+for region in image.nouns.regions:
+    print(region["label"], region["bbox"])
+```
+
+### Services and Raw Data
+
+If you need lower-level service outputs, they are still available as attributes:
+
+```python
+image.services.nudenet
+image.services.colors
+image.services.metadata
+image.services.caption_summary
+image.services.noun_consensus
 ```
 
 Accessing a service that didn't run returns `None`.
 
-Which services are present depends on your tier — use `client.tiers()` to see what's included. Higher tiers add VLM captioning services (blip, moondream, florence2, gemini, gpt_nano, haiku, ollama, qwen) and downstream analysis (noun_consensus, verb_consensus, caption_summary, rembg). These services surface automatically when they run — no SDK changes needed as the service lineup evolves.
+`image.caption` may be `None` on the baseline tier. It becomes useful on tiers
+that include captioning services.
+
+For raw API compatibility or debugging, use:
+
+```python
+image.raw
+```
 
 ### Serializing results
 
@@ -291,18 +375,18 @@ whether what succeeded is enough for your use case.
 
 ### Handling partial results without exceptions
 
-If partial results are acceptable for your use case (e.g., you only need nudenet and other services are optional), use `raise_on_partial=False`:
+If partial results are acceptable for your use case (for example, your moderation flow can proceed even if some supporting services failed), use `raise_on_partial=False`:
 
 ```python
 # Returns result with services_failed populated, logs a warning instead of raising
-result = client.analyze("photo.jpg", raise_on_partial=False)
+image = client.analyze("photo.jpg", raise_on_partial=False)
 
-if result.services_failed:
-    print(f"Warning: some services failed: {result.services_failed}")
+if image.services_failed:
+    print(f"Warning: some services failed: {image.services_failed}")
 
 # Use the partial result
-if result.nudenet:
-    print("Nudenet succeeded:", result.nudenet.detections)
+if image.is_nsfw is not None:
+    print("Moderation signal available:", image.moderation.reason)
 ```
 
 This is cleaner than catching `PartialResultError` when you know partial results are acceptable.
@@ -378,7 +462,7 @@ result = client.analyze("photo.jpg")
 
 Example output:
 ```
-DEBUG:ice9:POST /analyze (tier=default, file=photo.jpg)
+DEBUG:ice9:POST /analyze (tier=free, file=photo.jpg)
 INFO:ice9:POST /analyze -> 202 Accepted (image_id=12345)
 DEBUG:ice9:GET /status/12345 -> in progress (2/5 services)
 DEBUG:ice9:GET /status/12345 -> in progress (4/5 services)

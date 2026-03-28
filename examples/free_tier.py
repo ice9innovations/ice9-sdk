@@ -1,13 +1,12 @@
 """
 Submit an image to the free tier and print the results.
 
-The free tier runs a fixed set of fast services on your image:
-  - nudenet:          content moderation (detects explicit content)
-  - content_analysis: scene type, anatomy, gender breakdown, intimacy level
-  - colors:           dominant colors in the image
-  - metadata:         file format, dimensions, EXIF data
-  - ocr:              any text found in the image
-  - qr:               any QR codes or barcodes found in the image
+The free tier is the moderation baseline for the whole product:
+  - nudenet:          raw NSFW detections with boxes and confidence scores
+  - content_analysis: higher-level scene and anatomy summary derived from nudenet
+
+It may also include utility signals like colors, metadata, OCR, and QR parsing,
+but the main purpose of the free tier is fast NSFW screening.
 
 Results are usually ready in under a second (P50: 0.5s, P90: 5.6s).
 
@@ -24,21 +23,29 @@ from ice9.exceptions import PartialResultError
 def main(image_path):
     client = Ice9()  # reads ICE9_API_KEY from environment
 
-    print(f"Submitting {image_path} to the free tier...")
+    print(f"Submitting {image_path} to the baseline tier...")
     try:
-        result = client.analyze(image_path, tier="free")
+        result = client.analyze(image_path)
     except PartialResultError as e:
         # Some services failed but we still have partial results
         print(f"Warning: some services failed: {e.result.services_failed}")
         result = e.result
 
-    print(f"Done. Image ID: {result.image_id}\n")
-
-    for service_name in result.services_submitted:
-        service = getattr(result, service_name)
-        print(f"[{service_name}]")
-        print(service)
-        print()
+    if result.is_nsfw is True:
+        print("NSFW: yes")
+        print(f"Reason: {result.moderation.reason}")
+        if result.scene:
+            print(f"Scene: {result.scene.type} / {result.scene.intimacy}")
+        result.moderation.censor(image_path, output="censored.jpg")
+        print("Censored copy saved to censored.jpg")
+    elif result.is_nsfw is False:
+        print("NSFW: no")
+        print(f"Reason: {result.moderation.reason}")
+        if result.scene:
+            print(f"Scene: {result.scene.type} / {result.scene.intimacy}")
+    else:
+        print("NSFW: unknown")
+        print(f"Reason: {result.moderation.reason}")
 
 
 if __name__ == "__main__":

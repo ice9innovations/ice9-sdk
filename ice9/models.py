@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import warnings
 
+from .censor import CENSOR_LABELS
+
 # Fields stripped from service data before serialisation — pipeline bookkeeping
 # that is already captured at the top level or is not meaningful to callers.
 _SERVICE_STRIP_FIELDS = frozenset({"service", "status"})
@@ -99,6 +101,181 @@ class ServiceResult:
     def __bool__(self) -> bool:
         return bool(object.__getattribute__(self, '_data'))
 
+    def flagged_predictions(
+        self,
+        *,
+        labels: frozenset[str] | set[str] | None = None,
+        min_confidence: float = 0.5,
+    ) -> list[dict]:
+        """Return predictions matching the given labels and confidence floor.
+
+        This is primarily useful for moderation-oriented services like
+        ``nudenet``. By default it uses ``CENSOR_LABELS`` so callers can treat
+        the result as a ready-to-use NSFW screening set.
+        """
+        effective_labels = labels if labels is not None else CENSOR_LABELS
+        return [
+            prediction
+            for prediction in self.predictions
+            if prediction.get("label") in effective_labels
+            and prediction.get("confidence", 0) >= min_confidence
+        ]
+
+
+class ModerationResult:
+    """Moderation-oriented helpers for an AnalysisResult."""
+
+    def __init__(self, result: "AnalysisResult"):
+        self._result = result
+
+    @property
+    def reason(self) -> str:
+        """Return a short human-readable explanation of the moderation signal."""
+        result = self._result
+        detections = result.nsfw_detections()
+        if detections:
+            labels = ", ".join(sorted({d.get("label", "unknown") for d in detections}))
+            return f"Flagged NudeNet detections: {labels}."
+
+        if result.content_analysis is not None:
+            scene = result.scene
+            if scene:
+                parts = []
+                if scene.type is not None:
+                    parts.append(f"scene={scene.type}")
+                if scene.intimacy is not None:
+                    parts.append(f"intimacy={scene.intimacy}")
+                if scene.activities:
+                    parts.append(f"activities={','.join(map(str, scene.activities))}")
+                if parts:
+                    return "Content analysis: " + ", ".join(parts) + "."
+
+        if result.nudenet is not None:
+            return "No flagged NudeNet detections above the default threshold."
+
+        return "No moderation signal is available on this result."
+
+    def censor(self, image, *, method="fill", labels=None, min_confidence=0.5, output=None):
+        """Draw censoring over nudenet detections on the original image."""
+        from .censor import censor as _censor
+        return _censor(
+            self._result,
+            image,
+            method=method,
+            labels=labels,
+            min_confidence=min_confidence,
+            output=output,
+        )
+
+
+class SceneResult:
+    """Product-shaped scene summary derived from content_analysis."""
+
+    def __init__(
+        self,
+        *,
+        type: str | None = None,
+        intimacy: str | None = None,
+        activities: list[str] | None = None,
+        anatomy_exposed: list[str] | None = None,
+        raw: dict | None = None,
+    ):
+        self.type = type
+        self.intimacy = intimacy
+        self.activities = sorted(activities or [])
+        self.anatomy_exposed = anatomy_exposed or []
+        self.raw = raw or {}
+
+    def __bool__(self) -> bool:
+        return any((
+            self.type is not None,
+            self.intimacy is not None,
+            bool(self.activities),
+            bool(self.anatomy_exposed),
+        ))
+
+    @property
+    def activity(self) -> str | None:
+        """Return the single detected activity when the worker produced one."""
+        if len(self.activities) == 1:
+            return self.activities[0]
+        return None
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "intimacy": self.intimacy,
+            "activity": self.activity,
+            "activities": self.activities,
+            "anatomy_exposed": self.anatomy_exposed,
+        }
+
+
+class NounsResult:
+    """Noun-oriented helpers for an AnalysisResult."""
+
+    def __init__(self, result: "AnalysisResult"):
+        self._result = result
+
+    @property
+    def consensus(self) -> list[dict]:
+        noun_consensus = self._result.noun_consensus
+        if noun_consensus is None:
+            return []
+        return noun_consensus._data.get("nouns_all") or noun_consensus._data.get("nouns") or []
+
+    @property
+    def validated(self) -> list[dict]:
+        noun_consensus = self._result.noun_consensus
+        if noun_consensus is None:
+            return []
+        return noun_consensus._data.get("nouns") or []
+
+    @property
+    def regions(self) -> list[dict]:
+        grounding = self._result.florence2_grounding
+        if grounding is None:
+            return []
+        return grounding.predictions
+
+    def __bool__(self) -> bool:
+        return bool(self.consensus or self.regions)
+
+
+class VerbsResult:
+    """Verb-oriented helpers for an AnalysisResult."""
+
+    def __init__(self, result: "AnalysisResult"):
+        self._result = result
+
+    @property
+    def consensus(self) -> list:
+        verb_consensus = self._result.verb_consensus
+        if verb_consensus is None:
+            return []
+        return verb_consensus._data.get("verbs") or []
+
+    def __bool__(self) -> bool:
+        return bool(self.consensus)
+
+
+class ServicesResult:
+    """Advanced access to underlying service outputs."""
+
+    def __init__(self, service_results: dict[str, ServiceResult]):
+        self._service_results = service_results
+
+    def __getattr__(self, name: str) -> ServiceResult | None:
+        if name.startswith('_'):
+            raise AttributeError(name)
+        return self._service_results.get(name)
+
+    def __bool__(self) -> bool:
+        return bool(self._service_results)
+
+    def names(self) -> list[str]:
+        return sorted(self._service_results.keys())
+
 
 class AnalysisResult:
     """The result of a completed image analysis.
@@ -189,14 +366,115 @@ class AnalysisResult:
         """
         return json.dumps(self.to_dict(), default=str, **kwargs)
 
-    def censor(self, image, *, method="fill", labels=None, min_confidence=0.5, output=None):
-        """Draw censoring over nudenet detections on the original image.
+    @property
+    def raw(self) -> dict:
+        """Return the raw API payload for advanced use cases."""
+        return self._raw
 
-        Returns a PIL Image. See ice9.censor for full documentation.
+    @property
+    def services(self) -> ServicesResult:
+        """Return advanced access to underlying service outputs."""
+        return ServicesResult(self._service_results)
+
+    @property
+    def caption(self) -> str | None:
+        """Return the best available image-level caption.
+
+        Prefers the higher-level caption summary when present, then falls back
+        to the first text-producing service result.
         """
-        from .censor import censor as _censor
-        return _censor(self, image, method=method, labels=labels,
-                       min_confidence=min_confidence, output=output)
+        if self.caption_summary is not None:
+            summary = self.caption_summary._data.get("summary_caption")
+            if summary:
+                return summary
+
+        for service_name in self.services_submitted:
+            service = self._service_results.get(service_name)
+            if service is not None and service.text:
+                return service.text
+        return None
+
+    @property
+    def is_nsfw(self) -> bool | None:
+        """Return a simple moderation decision for the image.
+
+        Returns ``True`` when flagged NSFW detections are present, ``False``
+        when moderation signals are available and clean, and ``None`` when no
+        moderation signal is available on the result.
+        """
+        if self.has_nsfw():
+            return True
+        if self.nudenet is not None or self.content_analysis is not None:
+            return False
+        return None
+
+    @property
+    def scene(self) -> SceneResult | None:
+        """Return a product-shaped scene summary from content_analysis."""
+        if self.content_analysis is None:
+            return None
+
+        full_analysis = self.content_analysis._data.get("full_analysis") or {}
+        activity = full_analysis.get("activity_analysis") or {}
+        return SceneResult(
+            type=activity.get("scene_type"),
+            intimacy=activity.get("intimacy_level"),
+            activities=activity.get("activities") or [],
+            anatomy_exposed=full_analysis.get("anatomy_exposed") or [],
+            raw=full_analysis,
+        )
+
+    @property
+    def nouns(self) -> NounsResult | None:
+        """Return noun-oriented helpers for this image."""
+        nouns = NounsResult(self)
+        return nouns if nouns else None
+
+    @property
+    def verbs(self) -> VerbsResult | None:
+        """Return verb-oriented helpers for this image."""
+        verbs = VerbsResult(self)
+        return verbs if verbs else None
+
+    @property
+    def is_safe(self) -> bool | None:
+        """Convenience inverse of ``is_nsfw`` when the result is classifiable."""
+        value = self.is_nsfw
+        if value is None:
+            return None
+        return not value
+
+    @property
+    def moderation(self) -> ModerationResult:
+        """Return moderation-oriented helpers for this image."""
+        return ModerationResult(self)
+
+    def nsfw_detections(
+        self,
+        *,
+        labels: frozenset[str] | set[str] | None = None,
+        min_confidence: float = 0.5,
+    ) -> list[dict]:
+        """Return moderation detections from ``nudenet`` above the threshold.
+
+        Higher tiers inherit the free-tier ``nudenet`` signal, so this helper
+        gives all tiers a single moderation-oriented access pattern.
+        """
+        if self.nudenet is None:
+            return []
+        return self.nudenet.flagged_predictions(
+            labels=labels,
+            min_confidence=min_confidence,
+        )
+
+    def has_nsfw(
+        self,
+        *,
+        labels: frozenset[str] | set[str] | None = None,
+        min_confidence: float = 0.5,
+    ) -> bool:
+        """Return ``True`` when the result contains flagged NSFW detections."""
+        return bool(self.nsfw_detections(labels=labels, min_confidence=min_confidence))
 
     def __repr__(self) -> str:
         service_results = object.__getattribute__(self, '_service_results')

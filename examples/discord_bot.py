@@ -1,7 +1,7 @@
 """
-Discord moderation bot using the ice9 free tier.
+Discord moderation bot using the ice9 baseline tier.
 
-Screens every image attachment posted to your server. If nudenet detects
+Screens every image attachment posted to your server. If ice9 flags
 explicit content above the confidence threshold, the message is deleted and
 the user is notified in a DM.
 
@@ -62,12 +62,7 @@ def get_flagged_detections(result):
     """Return detections that are in CENSOR_LABELS and above MIN_CONFIDENCE."""
     if result.nudenet is None:
         return []
-
-    flagged = []
-    for detection in result.nudenet.predictions:
-        if detection["label"] in CENSOR_LABELS and detection["confidence"] >= MIN_CONFIDENCE:
-            flagged.append(detection)
-    return flagged
+    return result.nsfw_detections(labels=CENSOR_LABELS, min_confidence=MIN_CONFIDENCE)
 
 
 async def screen_attachment(attachment):
@@ -82,7 +77,7 @@ async def screen_attachment(attachment):
     try:
         result = await loop.run_in_executor(
             None,
-            lambda: ice9.analyze(fp, tier="free"),
+            lambda: ice9.analyze(fp),
         )
     except PartialResultError as e:
         log.warning("Partial result for %s: %s", attachment.filename, e)

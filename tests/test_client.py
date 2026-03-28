@@ -253,17 +253,18 @@ def test_analyze_passes_tier(png_file, respx_mock):
     assert b"free" in request.content
 
 
-def test_analyze_omits_tier_when_not_specified(png_file, respx_mock):
+def test_analyze_uses_baseline_tier_when_not_specified(png_file, respx_mock):
     post_route = respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
     mock_final_result(respx_mock)
 
     make_client().analyze(png_file)
 
-    # Verify tier was NOT sent in the request body
+    # Verify baseline tier was sent in the request body
     assert post_route.called
     request = post_route.calls[0].request
-    assert b"tier" not in request.content
+    assert b"tier" in request.content
+    assert b"free" in request.content
 
 
 def test_analyze_polls_until_complete(png_file, respx_mock):
@@ -733,4 +734,3 @@ def test_analyze_fetches_results_after_status_complete(png_file, respx_mock):
     result = make_client().analyze(png_file)
 
     assert result.content_analysis is not None
-

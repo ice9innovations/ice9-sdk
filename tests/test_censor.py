@@ -104,18 +104,18 @@ def test_censor_labels_excludes_faces():
 
 def test_censor_returns_pil_image(result_with_nudenet, small_image):
     from PIL import Image
-    img = result_with_nudenet.censor(small_image)
+    img = result_with_nudenet.moderation.censor(small_image)
     assert isinstance(img, Image.Image)
 
 
 def test_censor_preserves_image_dimensions(result_with_nudenet, small_image):
-    img = result_with_nudenet.censor(small_image)
+    img = result_with_nudenet.moderation.censor(small_image)
     from PIL import Image
     assert img.size == Image.open(small_image).size
 
 
 def test_censor_fill_draws_black_rectangle(result_with_nudenet, small_image):
-    img = result_with_nudenet.censor(small_image, method="fill")
+    img = result_with_nudenet.moderation.censor(small_image, method="fill")
     # Breast detection at x=100, y=100, w=80, h=90 → centre (140, 145)
     r, g, b = img.getpixel((140, 145))
     assert r == 0 and g == 0 and b == 0
@@ -124,14 +124,14 @@ def test_censor_fill_draws_black_rectangle(result_with_nudenet, small_image):
 def test_censor_pixelate_changes_region(result_with_nudenet, small_image):
     from PIL import Image
     original = Image.open(small_image).convert("RGB")
-    censored = result_with_nudenet.censor(small_image, method="pixelate")
+    censored = result_with_nudenet.moderation.censor(small_image, method="pixelate")
     # Gradient image — pixelation averages blocks, changing individual pixel values
     assert censored.getpixel((140, 145)) != original.getpixel((140, 145))
 
 
 def test_censor_saves_to_output_path(result_with_nudenet, small_image, tmp_path):
     output = tmp_path / "censored.jpg"
-    result_with_nudenet.censor(small_image, output=output)
+    result_with_nudenet.moderation.censor(small_image, output=output)
     assert output.exists()
     assert output.stat().st_size > 0
 
@@ -139,7 +139,7 @@ def test_censor_saves_to_output_path(result_with_nudenet, small_image, tmp_path)
 def test_censor_returns_image_even_when_output_given(result_with_nudenet, small_image, tmp_path):
     from PIL import Image
     output = tmp_path / "censored.jpg"
-    img = result_with_nudenet.censor(small_image, output=output)
+    img = result_with_nudenet.moderation.censor(small_image, output=output)
     assert isinstance(img, Image.Image)
 
 
@@ -150,7 +150,7 @@ def test_censor_skips_non_default_labels(result_with_nudenet, small_image):
     """BELLY_EXPOSED is not in CENSOR_LABELS — that region should be untouched."""
     from PIL import Image
     original = Image.open(small_image).convert("RGB")
-    censored = result_with_nudenet.censor(small_image, method="fill")
+    censored = result_with_nudenet.moderation.censor(small_image, method="fill")
     # Belly bbox: x=120, y=200, w=100, h=80 → centre (170, 240)
     assert censored.getpixel((170, 240)) == original.getpixel((170, 240))
 
@@ -159,7 +159,7 @@ def test_censor_skips_low_confidence(result_with_nudenet, small_image):
     """The breast detection at confidence=0.30 should be skipped at default threshold."""
     from PIL import Image
     original = Image.open(small_image).convert("RGB")
-    censored = result_with_nudenet.censor(small_image, method="fill")
+    censored = result_with_nudenet.moderation.censor(small_image, method="fill")
     # Low-confidence bbox: x=200, y=100, w=80, h=90 → centre (240, 145)
     assert censored.getpixel((240, 145)) == original.getpixel((240, 145))
 
@@ -169,7 +169,7 @@ def test_censor_custom_labels(result_with_nudenet, small_image):
     from PIL import Image
     original = Image.open(small_image).convert("RGB")
     # Only censor belly (not in defaults)
-    censored = result_with_nudenet.censor(small_image, method="fill", labels={"BELLY_EXPOSED"})
+    censored = result_with_nudenet.moderation.censor(small_image, method="fill", labels={"BELLY_EXPOSED"})
     # Belly centre (170, 240) should now be black
     assert censored.getpixel((170, 240)) == (0, 0, 0)
     # Breast centre (140, 145) should be untouched
@@ -178,7 +178,7 @@ def test_censor_custom_labels(result_with_nudenet, small_image):
 
 def test_censor_min_confidence_zero_includes_all(result_with_nudenet, small_image):
     """min_confidence=0 should apply even the 0.30-confidence detection."""
-    censored = result_with_nudenet.censor(small_image, method="fill", min_confidence=0)
+    censored = result_with_nudenet.moderation.censor(small_image, method="fill", min_confidence=0)
     # Low-confidence bbox centre (240, 145) should now be black
     assert censored.getpixel((240, 145)) == (0, 0, 0)
 
@@ -188,7 +188,7 @@ def test_censor_min_confidence_zero_includes_all(result_with_nudenet, small_imag
 
 def test_censor_scales_bboxes_for_large_image(result_with_nudenet, large_image):
     """Large images should use API bboxes as-is, without client-side compensation."""
-    img = result_with_nudenet.censor(large_image, method="fill")
+    img = result_with_nudenet.moderation.censor(large_image, method="fill")
     # Breast bbox is already in original-image space: x=100, y=100, w=80, h=90.
     r, g, b = img.getpixel((140, 145))
     assert r == 0 and g == 0 and b == 0
@@ -198,7 +198,7 @@ def test_censor_scales_bboxes_for_large_image(result_with_nudenet, large_image):
 
 def test_censor_no_scaling_for_small_image(result_with_nudenet, small_image):
     """For a 200x200 image (below API max), bboxes are used as-is."""
-    img = result_with_nudenet.censor(small_image, method="fill")
+    img = result_with_nudenet.moderation.censor(small_image, method="fill")
     # Breast bbox: x=100, y=100, w=80, h=90 → centre (140, 140) should be black
     assert img.getpixel((140, 140)) == (0, 0, 0)
 
@@ -208,12 +208,12 @@ def test_censor_no_scaling_for_small_image(result_with_nudenet, small_image):
 
 def test_censor_raises_without_nudenet(result_without_nudenet, small_image):
     with pytest.raises(Ice9Error, match="nudenet"):
-        result_without_nudenet.censor(small_image)
+        result_without_nudenet.moderation.censor(small_image)
 
 
 def test_censor_raises_on_unknown_method(result_with_nudenet, small_image):
     with pytest.raises(ValueError, match="Unknown censor method"):
-        result_with_nudenet.censor(small_image, method="blur")
+        result_with_nudenet.moderation.censor(small_image, method="blur")
 
 
 def test_censor_no_detections_returns_unchanged_image(tmp_path, small_image):
@@ -227,5 +227,5 @@ def test_censor_no_detections_returns_unchanged_image(tmp_path, small_image):
     }
     result = AnalysisResult._from_status(status)
     original = Image.open(small_image).convert("RGB")
-    censored = result.censor(small_image)
+    censored = result.moderation.censor(small_image)
     assert list(censored.getdata()) == list(original.getdata())

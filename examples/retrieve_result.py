@@ -12,12 +12,12 @@ Usage:
 
 Example workflow:
     # First, analyze an image
-    result = client.analyze("photo.jpg")
-    print(f"Image ID: {result.image_id}")  # Save this ID
+    image = client.analyze("photo.jpg")
+    print(f"Image ID: {image.image_id}")  # Save this ID
 
     # Later, retrieve the same results
-    result = client.get_result(12345)
-    print(result.nudenet)
+    image = client.get_result(12345)
+    print(image.is_nsfw, image.moderation.reason)
 """
 
 import sys
@@ -39,16 +39,16 @@ def main(image_id):
 
     print(f"Success! Retrieved analysis for image {result.image_id}\n")
     print(f"Services: {', '.join(result.services_submitted)}")
-    print(f"Image filename: {result._raw.get('image_filename', 'N/A')}")
-    print(f"Image group: {result._raw.get('image_group', 'N/A')}")
-    print(f"Analyzed at: {result._raw.get('image_created', 'N/A')}")
+    print(f"Image filename: {result.raw.get('image_filename', 'N/A')}")
+    print(f"Image group: {result.raw.get('image_group', 'N/A')}")
+    print(f"Analyzed at: {result.raw.get('image_created', 'N/A')}")
 
     if result.services_failed:
         print(f"\nFailed services: {result.services_failed}")
 
     print("\nService results:")
-    for service_name in result.services_submitted:
-        service = getattr(result, service_name)
+    for service_name in result.services.names():
+        service = getattr(result.services, service_name)
         if service:
             print(f"  [{service_name}] ✓")
         else:

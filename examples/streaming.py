@@ -24,7 +24,7 @@ def main(image_path):
     start = time.monotonic()
 
     try:
-        for result in client.analyze(image_path, tier="free", stream=True):
+        for result in client.analyze(image_path, stream=True):
             elapsed = time.monotonic() - start
 
             if result.is_complete:

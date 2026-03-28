@@ -276,6 +276,20 @@ async def test_analyze_url_not_an_image(respx_mock):
             await client.analyze("https://example.com/file.txt")
 
 
+async def test_analyze_uses_baseline_tier_when_not_specified(respx_mock, png_file):
+    post_route = respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
+    mock_final_result(respx_mock)
+
+    async with make_client() as client:
+        await client.analyze(png_file)
+
+    assert post_route.called
+    request = post_route.calls[0].request
+    assert b"tier" in request.content
+    assert b"free" in request.content
+
+
 async def test_analyze_polls_until_complete(respx_mock, png_file):
     """Verify the client polls multiple times before is_complete."""
     import copy
@@ -557,4 +571,3 @@ async def test_analyze_fetches_results_after_status_complete(respx_mock, png_fil
         result = await client.analyze(png_file)
 
     assert result.content_analysis is not None
-

@@ -31,7 +31,7 @@ def main(image_url: str):
     print(f"URL: {image_url}\n")
 
     try:
-        result = client.analyze(image_url, tier="free")
+        result = client.analyze(image_url)
     except PartialResultError as e:
         print(f"Warning: some services failed: {e.result.services_failed}")
         result = e.result
