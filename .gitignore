@@ -214,3 +214,6 @@ context.txt
 images/
 issues/
 test_results.txt
+
+# Node.js
+nodejs/node_modules/
