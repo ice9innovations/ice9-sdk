@@ -414,7 +414,7 @@ class AnalysisResult:
         return SceneResult(
             type=activity.get("scene_type"),
             intimacy=activity.get("intimacy_level"),
-            activities=activity.get("activities") or [],
+            activities=activity.get("activities") or activity.get("activities_detected") or [],
             anatomy_exposed=full_analysis.get("anatomy_exposed") or [],
             raw=full_analysis,
         )

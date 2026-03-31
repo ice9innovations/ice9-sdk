@@ -340,6 +340,16 @@ def test_scene_activity_returns_single_activity_only():
     assert result.scene.activity == "oral_sex"
 
 
+def test_scene_uses_activities_detected_fallback():
+    import copy
+    status = copy.deepcopy(STATUS_COMPLETE)
+    result = AnalysisResult._from_status(status)
+    result.content_analysis._data["full_analysis"]["activity_analysis"].pop("activities", None)
+    result.content_analysis._data["full_analysis"]["activity_analysis"]["activities_detected"] = ["kissing"]
+    assert result.scene.activities == ["kissing"]
+    assert result.scene.activity == "kissing"
+
+
 def test_is_nsfw_false_when_nudenet_present_without_flags():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     assert result.is_nsfw is False

@@ -349,7 +349,9 @@ export class AnalysisResult {
           : null,
       activities: Array.isArray(activityAnalysis.activities)
         ? (activityAnalysis.activities as string[])
-        : [],
+        : Array.isArray(activityAnalysis.activities_detected)
+          ? (activityAnalysis.activities_detected as string[])
+          : [],
       anatomyExposed: Array.isArray(fullAnalysis.anatomy_exposed)
         ? (fullAnalysis.anatomy_exposed as string[])
         : [],

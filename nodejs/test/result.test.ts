@@ -28,6 +28,15 @@ describe("AnalysisResult", () => {
     expect(result.nonexistent_service).toBeNull();
   });
 
+  test("scene falls back to activities_detected", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    delete (status.service_results.content_analysis.full_analysis.activity_analysis as any).activities;
+    (status.service_results.content_analysis.full_analysis.activity_analysis as any).activities_detected = ["kissing"];
+    const result = AnalysisResult.fromStatus(status);
+    expect(result.scene?.activities).toEqual(["kissing"]);
+    expect(result.scene?.activity).toBe("kissing");
+  });
+
   test("caption prefers summary and nouns reflect consensus helpers", () => {
     const result = AnalysisResult.fromStatus(STATUS_COMPLETE_BASIC);
     expect(result.caption).toBe("A dog is sitting on a hardwood floor.");
