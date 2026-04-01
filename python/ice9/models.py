@@ -178,12 +178,16 @@ class SceneResult:
         intimacy: str | None = None,
         activities: list[str] | None = None,
         anatomy_exposed: list[str] | None = None,
+        people: int | None = None,
+        gender: dict | None = None,
         raw: dict | None = None,
     ):
         self.type = type
         self.intimacy = intimacy
         self.activities = sorted(activities or [])
         self.anatomy_exposed = anatomy_exposed or []
+        self.people = people
+        self.gender = gender or {}
         self._raw = raw or {}
 
     def __bool__(self) -> bool:
@@ -192,6 +196,8 @@ class SceneResult:
             self.intimacy is not None,
             bool(self.activities),
             bool(self.anatomy_exposed),
+            self.people is not None,
+            bool(self.gender),
         ))
 
     @property
@@ -208,6 +214,8 @@ class SceneResult:
             "activity": self.activity,
             "activities": self.activities,
             "anatomy_exposed": self.anatomy_exposed,
+            "people": self.people,
+            "gender": self.gender,
         }
 
 
@@ -411,11 +419,14 @@ class AnalysisResult:
 
         full_analysis = self.content_analysis._data.get("full_analysis") or {}
         activity = full_analysis.get("activity_analysis") or {}
+        scene = full_analysis.get("scene") or {}
         return SceneResult(
-            type=activity.get("scene_type"),
+            type=full_analysis.get("category") or activity.get("scene_type"),
             intimacy=activity.get("intimacy_level"),
             activities=activity.get("activities") or activity.get("activities_detected") or [],
             anatomy_exposed=full_analysis.get("anatomy_exposed") or [],
+            people=scene.get("people"),
+            gender=scene.get("gender") or {},
             raw=full_analysis,
         )
 
@@ -430,6 +441,14 @@ class AnalysisResult:
         """Return verb-oriented helpers for this image."""
         verbs = VerbsResult(self)
         return verbs if verbs else None
+
+    @property
+    def category(self) -> str | None:
+        """Return the canonical content category when available."""
+        scene = self.scene
+        if scene is None:
+            return None
+        return scene.type
 
     @property
     def is_safe(self) -> bool | None:

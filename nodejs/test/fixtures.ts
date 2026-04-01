@@ -23,6 +23,15 @@ export const STATUS_COMPLETE = {
     qr: { data: { codes: [] }, processing_time: 0.1 },
     content_analysis: {
       full_analysis: {
+        category: "safe",
+        scene: {
+          people: 0,
+          gender: {
+            presentation: "unknown",
+            mixed: false,
+            confidence: 0,
+          },
+        },
         activity_analysis: {
           scene_type: "safe",
           intimacy_level: "none",

@@ -330,6 +330,9 @@ def test_scene_is_derived_from_content_analysis():
     assert result.scene.intimacy == "none"
     assert result.scene.activities == []
     assert result.scene.activity is None
+    assert result.category == "safe"
+    assert result.scene.people == 0
+    assert result.scene.gender == {"presentation": "unknown", "mixed": False, "confidence": 0.0}
 
 
 def test_scene_activity_returns_single_activity_only():

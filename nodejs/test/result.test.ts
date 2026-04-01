@@ -26,6 +26,9 @@ describe("AnalysisResult", () => {
     expect(result.nudenet).toBeInstanceOf(ServiceResult);
     expect(result.colors).toBeInstanceOf(ServiceResult);
     expect(result.nonexistent_service).toBeNull();
+    expect(result.category).toBe("safe");
+    expect(result.scene?.people).toBe(0);
+    expect(result.scene?.gender).toEqual({ presentation: "unknown", mixed: false, confidence: 0 });
   });
 
   test("scene falls back to activities_detected", () => {
@@ -35,6 +38,7 @@ describe("AnalysisResult", () => {
     const result = AnalysisResult.fromStatus(status);
     expect(result.scene?.activities).toEqual(["kissing"]);
     expect(result.scene?.activity).toBe("kissing");
+    expect(result.category).toBe("safe");
   });
 
   test("caption prefers summary and nouns reflect consensus helpers", () => {

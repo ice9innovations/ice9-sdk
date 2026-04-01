@@ -68,6 +68,15 @@ STATUS_COMPLETE = {
         # Injected without "data" wrapper — canonical schema (all data in full_analysis)
         "content_analysis": {
             "full_analysis": {
+                "category": "safe",
+                "scene": {
+                    "people": 0,
+                    "gender": {
+                        "presentation": "unknown",
+                        "mixed": False,
+                        "confidence": 0.0,
+                    },
+                },
                 "activity_analysis": {
                     "scene_type": "safe",
                     "intimacy_level": "none",

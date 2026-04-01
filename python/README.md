@@ -155,8 +155,11 @@ The SDK exposes image-level outcomes first:
 ```python
 image.is_nsfw                    # True, False, or None if unavailable
 image.is_safe                    # inverse of is_nsfw when available
+image.category                   # canonical content category when available
 image.scene                      # product-shaped scene summary when available
-image.scene.type                 # e.g. "sfw", "sexually_explicit"
+image.scene.type                 # canonical category, e.g. "safe" or "sexually_explicit"
+image.scene.people               # scene-level deduplicated person count when available
+image.scene.gender               # scene-level gender summary when available
 image.scene.intimacy             # current intimacy classification from content analysis
 image.scene.activity             # single detected activity when there is exactly one
 image.moderation.reason          # short explanation of the moderation signal

@@ -169,6 +169,8 @@ class SceneResult {
   readonly intimacy: string | null;
   readonly activities: string[];
   readonly anatomyExposed: string[];
+  readonly people: number | null;
+  readonly gender: Record<string, unknown>;
   readonly raw: Record<string, unknown>;
 
   constructor(data: {
@@ -176,12 +178,16 @@ class SceneResult {
     intimacy?: string | null;
     activities?: string[];
     anatomyExposed?: string[];
+    people?: number | null;
+    gender?: Record<string, unknown>;
     raw?: Record<string, unknown>;
   }) {
     this.type = data.type ?? null;
     this.intimacy = data.intimacy ?? null;
     this.activities = [...(data.activities ?? [])].sort();
     this.anatomyExposed = data.anatomyExposed ?? [];
+    this.people = data.people ?? null;
+    this.gender = data.gender ?? {};
     this.raw = data.raw ?? {};
   }
 
@@ -196,6 +202,8 @@ class SceneResult {
       activity: this.activity,
       activities: this.activities,
       anatomy_exposed: this.anatomyExposed,
+      people: this.people,
+      gender: this.gender,
     };
   }
 }
@@ -328,6 +336,10 @@ export class AnalysisResult {
     return null;
   }
 
+  get category(): string | null {
+    return this.scene?.type ?? null;
+  }
+
   get isSafe(): boolean | null {
     const value = this.isNsfw;
     return value == null ? null : !value;
@@ -341,8 +353,13 @@ export class AnalysisResult {
     const activityAnalysis = isObject(fullAnalysis.activity_analysis)
       ? fullAnalysis.activity_analysis
       : {};
+    const sceneSummary = isObject(fullAnalysis.scene) ? fullAnalysis.scene : {};
     return new SceneResult({
-      type: typeof activityAnalysis.scene_type === "string" ? activityAnalysis.scene_type : null,
+      type: typeof fullAnalysis.category === "string"
+        ? fullAnalysis.category
+        : typeof activityAnalysis.scene_type === "string"
+          ? activityAnalysis.scene_type
+          : null,
       intimacy:
         typeof activityAnalysis.intimacy_level === "string"
           ? activityAnalysis.intimacy_level
@@ -355,6 +372,8 @@ export class AnalysisResult {
       anatomyExposed: Array.isArray(fullAnalysis.anatomy_exposed)
         ? (fullAnalysis.anatomy_exposed as string[])
         : [],
+      people: typeof sceneSummary.people === "number" ? sceneSummary.people : null,
+      gender: isObject(sceneSummary.gender) ? sceneSummary.gender : {},
       raw: fullAnalysis,
     });
   }
