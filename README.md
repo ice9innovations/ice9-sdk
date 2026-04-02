@@ -1,6 +1,6 @@
-# ice9 SDKs
+# Ice9 SDKs
 
-Monorepo for the `ice9` SDKs.
+Monorepo for the `Ice9` SDKs.
 
 ## Packages
 

@@ -1,6 +1,6 @@
 # @ice9/sdk
 
-Node.js SDK for the [ice9](https://ice9.ai) image analysis API.
+Node.js SDK for the [Ice9](https://ice9.ai) image analysis API.
 
 ## Installation
 

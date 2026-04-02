@@ -1,14 +1,14 @@
-# ice9 SDK
+# Ice9 SDK
 
 [![PyPI version](https://badge.fury.io/py/ice9.svg)](https://badge.fury.io/py/ice9)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Python SDK for the [ice9](https://ice9.ai) image analysis API.
+Python SDK for the [Ice9](https://ice9.ai) image analysis API.
 
 ## Stability
 
-`ice9` is currently a pre-1.0 SDK and uses `0.0.x` versioning.
+`Ice9` is currently a pre-1.0 SDK and uses `0.0.x` versioning.
 
 - Breaking changes may still happen between releases while the upstream API and
   pipeline contracts are settling
