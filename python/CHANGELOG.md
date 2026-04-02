@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.19] - 2026-04-02
+
+### Added
+- Exposed the canonical content-analysis category as `image.category`
+- Extended `image.scene` with additive scene-summary fields from `content_analysis`
+  - `image.scene.people` now exposes the scene-level deduplicated person count when available
+  - `image.scene.gender` now exposes the scene-level gender summary when available
+
+### Fixed
+- `image.scene.activities` now falls back to `activity_analysis.activities_detected` when the canonical `activities` list is absent
+- Preserved backward compatibility across both legacy and additive `content_analysis` payload shapes during the Windmill transition
+
+
 ## [0.0.18] - 2026-03-28
 
 ### Removed

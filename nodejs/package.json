@@ -2,6 +2,24 @@
   "name": "@ice9/sdk",
   "version": "0.0.1",
   "description": "Node.js SDK for the ice9 image analysis API",
+  "license": "MIT",
+  "homepage": "https://ice9.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ice9innovations/ice9-sdk.git",
+    "directory": "nodejs"
+  },
+  "bugs": {
+    "url": "https://github.com/ice9innovations/ice9-sdk/issues"
+  },
+  "keywords": [
+    "ice9",
+    "image-analysis",
+    "computer-vision",
+    "ai",
+    "nsfw",
+    "content-moderation"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,11 +30,16 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=20"

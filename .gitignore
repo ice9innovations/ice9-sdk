@@ -1,4 +1,6 @@
 # Byte-compiled / optimized / DLL files
+.npmrc
+.codex
 CONTRACT.md
 __pycache__/
 *.py[codz]
