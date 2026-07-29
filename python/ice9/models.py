@@ -8,6 +8,7 @@ from .censor import CENSOR_LABELS
 # Fields stripped from service data before serialisation — pipeline bookkeeping
 # that is already captured at the top level or is not meaningful to callers.
 _SERVICE_STRIP_FIELDS = frozenset({"service", "status"})
+_SAFE_SCENE_TYPES = frozenset({"safe", "sfw"})
 
 
 def _unwrap_service_entry(entry: dict) -> dict:
@@ -401,12 +402,16 @@ class AnalysisResult:
     def is_nsfw(self) -> bool | None:
         """Return a simple moderation decision for the image.
 
-        Returns ``True`` when flagged NSFW detections are present, ``False``
-        when moderation signals are available and clean, and ``None`` when no
-        moderation signal is available on the result.
+        Returns ``True`` when flagged NSFW detections are present or content
+        analysis reports a non-safe scene, ``False`` when moderation signals
+        are available and clean, and ``None`` when no moderation signal is
+        available on the result.
         """
         if self.has_nsfw():
             return True
+        scene = self.scene
+        if scene is not None and scene.type is not None:
+            return str(scene.type).lower() not in _SAFE_SCENE_TYPES
         if self.nudenet is not None or self.content_analysis is not None:
             return False
         return None

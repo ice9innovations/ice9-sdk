@@ -28,6 +28,7 @@ export interface RawStatus {
 }
 
 const SERVICE_STRIP_FIELDS = new Set(["service", "status"]);
+const SAFE_SCENE_TYPES = new Set(["safe", "sfw"]);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -329,6 +330,9 @@ export class AnalysisResult {
   get isNsfw(): boolean | null {
     if (this.hasNsfw()) {
       return true;
+    }
+    if (this.scene?.type) {
+      return !SAFE_SCENE_TYPES.has(this.scene.type.toLowerCase());
     }
     if (this.nudenet || this.content_analysis) {
       return false;

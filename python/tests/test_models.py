@@ -358,6 +358,25 @@ def test_is_nsfw_false_when_nudenet_present_without_flags():
     assert result.is_nsfw is False
     assert result.is_safe is True
 
+
+def test_is_nsfw_true_when_content_analysis_scene_is_not_safe():
+    import copy
+    status = copy.deepcopy(STATUS_COMPLETE)
+    full_analysis = status["service_results"]["content_analysis"]["full_analysis"]
+    full_analysis["category"] = "softcore_pornography"
+    full_analysis["activity_analysis"]["scene_type"] = "softcore_pornography"
+    full_analysis["activity_analysis"]["intimacy_level"] = "none"
+    full_analysis["anatomy_exposed"] = ["FEMALE_GENITALIA_EXPOSED"]
+
+    result = AnalysisResult._from_status(status)
+
+    assert result.is_nsfw is True
+    assert result.is_safe is False
+    assert result.moderation.reason == (
+        "Content analysis: scene=softcore_pornography, intimacy=none."
+    )
+
+
 def test_is_nsfw_true_when_flagged_detections_present():
     result = AnalysisResult._from_status(STATUS_COMPLETE)
     result.nudenet._data["predictions"] = [

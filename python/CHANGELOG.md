@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.20] - 2026-07-29
+
+### Fixed
+- Treat non-safe content-analysis scenes, including `softcore_pornography`, as NSFW in SDK convenience fields
+- Preserved parity between the Python and Node SDK result layers for scene-based safety classification
+
 ## [0.0.19] - 2026-04-02
 
 ### Added

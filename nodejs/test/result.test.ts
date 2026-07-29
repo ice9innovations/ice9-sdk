@@ -54,6 +54,24 @@ describe("AnalysisResult", () => {
     expect(result.isSafe).toBe(true);
   });
 
+  test("isNsfw returns true when content analysis scene is not safe", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    const contentAnalysis = status.service_results.content_analysis;
+    const fullAnalysis = contentAnalysis.full_analysis;
+    fullAnalysis.category = "softcore_pornography";
+    fullAnalysis.activity_analysis.scene_type = "softcore_pornography";
+    fullAnalysis.activity_analysis.intimacy_level = "none";
+    fullAnalysis.anatomy_exposed = ["FEMALE_GENITALIA_EXPOSED"];
+
+    const result = AnalysisResult.fromStatus(status);
+
+    expect(result.isNsfw).toBe(true);
+    expect(result.isSafe).toBe(false);
+    expect(result.moderation.reason).toBe(
+      "Content analysis: scene=softcore_pornography, intimacy=none.",
+    );
+  });
+
   test("terminal failures preserve metadata", () => {
     const result = AnalysisResult.fromStatus(STATUS_COMPLETE_WITH_TERMINAL_FAILURE);
     expect((result as any).pose.error_message).toBe("worker returned terminal failure");

@@ -1,6 +1,6 @@
 {
   "name": "@ice9/sdk",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Node.js SDK for the ice9 image analysis API",
   "license": "MIT",
   "homepage": "https://ice9.ai",
@@ -35,6 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "prepack": "npm run build",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
