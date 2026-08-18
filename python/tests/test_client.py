@@ -84,8 +84,8 @@ def test_tiers_returns_dict(respx_mock):
     respx_mock.get(f"{BASE}/tiers").mock(return_value=httpx.Response(200, json=TIERS_RESPONSE))
     client = make_client()
     result = client.tiers()
-    assert "free" in result
-    assert "nudenet" in result["free"]
+    assert "basic" in result
+    assert "nudenet" in result["basic"]
 
 
 def test_tiers_raises_on_server_error(respx_mock):
@@ -245,12 +245,12 @@ def test_analyze_passes_tier(png_file, respx_mock):
     respx_mock.get(f"{BASE}/status/42").mock(return_value=httpx.Response(200, json=STATUS_COMPLETE))
     mock_final_result(respx_mock)
 
-    make_client().analyze(png_file, tier="free")
+    make_client().analyze(png_file, tier="cloud")
 
     # Verify tier was sent in the request body
     assert post_route.called
     request = post_route.calls[0].request
-    assert b"free" in request.content
+    assert b"cloud" in request.content
 
 
 def test_analyze_uses_baseline_tier_when_not_specified(png_file, respx_mock):
@@ -264,7 +264,7 @@ def test_analyze_uses_baseline_tier_when_not_specified(png_file, respx_mock):
     assert post_route.called
     request = post_route.calls[0].request
     assert b"tier" in request.content
-    assert b"free" in request.content
+    assert b"basic" in request.content
 
 
 def test_analyze_polls_until_complete(png_file, respx_mock):

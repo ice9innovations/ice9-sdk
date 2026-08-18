@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.21] - 2026-08-18
+
+### Changed
+- Updated the SDK baseline tier from `free` to `basic`
+- Refreshed tier documentation, examples, and test fixtures for the current `basic`, `cloud`, `extra`, and `premium` tiers
+
 ## [0.0.20] - 2026-07-29
 
 ### Fixed

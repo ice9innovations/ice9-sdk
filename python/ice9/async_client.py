@@ -21,7 +21,7 @@ from .exceptions import (
 from .models import AnalysisResult
 
 logger = logging.getLogger("ice9")
-BASELINE_TIER = "free"
+BASELINE_TIER = "basic"
 
 
 class AsyncIce9:
@@ -129,8 +129,8 @@ class AsyncIce9:
             Dict mapping tier name to list of service names, e.g.::
 
                 {
-                    "free":     ["colors", "metadata", "nudenet", "ocr", "qr"],
-                    "premium":  ["colors", "metadata", "nudenet", "ocr", "qr", "yolo", ...],
+                    "basic":   ["colors", "content_analysis", "metadata", "nsfw2", ...],
+                    "premium": ["blip", "caption_summary", "colors", "face", ...],
                 }
         """
         url = f"{self._base_url}/tiers"
@@ -350,7 +350,7 @@ class AsyncIce9:
             image:            Path to an image file (str or Path), or an open binary
                               file object.
             tier:             Processing tier. If omitted, the SDK uses the
-                              baseline tier (currently ``"free"``). Higher tiers
+                              baseline tier (currently ``"basic"``). Higher tiers
                               must be requested explicitly. Use client.tiers()
                               to see what is available.
             image_group:      Tag for grouping images server-side. Defaults to 'api'.

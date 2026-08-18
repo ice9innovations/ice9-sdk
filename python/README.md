@@ -112,14 +112,15 @@ services. To see what's available:
 # See which services are in each tier
 tiers = client.tiers()
 # {
-#   "free":    ["colors", "metadata", "nudenet"],
-#   "basic":   ["blip", "colors", "florence2", ...],
-#   "premium": [...],
+#   "basic":   ["colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"],
+#   "cloud":   ["caption_summary", "colors", "content_analysis", ...],
+#   "extra":   ["blip", "caption_summary", "colors", "content_analysis", ...],
+#   "premium": ["blip", "caption_summary", "colors", "content_analysis", ...],
 # }
 
 # Or get a list of all available services
 services = client.services()
-# ["blip2", "colors", "florence2", "metadata", "nudenet", "yolo_v8", ...]
+# ["blip", "caption_summary", "colors", "content_analysis", "metadata", "nudenet", ...]
 ```
 
 Pass a tier to `analyze()`:
@@ -131,10 +132,9 @@ result = client.analyze("photo.jpg", tier="basic")
 If you omit `tier`, the SDK uses the baseline tier.
 Higher tiers must be requested explicitly.
 
-The free tier is the foundation for the rest of the product: it provides the
-fast `nudenet` moderation pass and its derived `content_analysis` summary.
-Higher tiers build on that baseline by adding more expensive captioning,
-grounding, and consensus services.
+The basic tier is the foundation for the rest of the product: it provides
+moderation, content analysis, metadata, colors, and object detection. Higher
+tiers add more expensive captioning, grounding, consensus, and model services.
 
 That means the default call is the no-surprises path:
 
@@ -389,13 +389,13 @@ This is cleaner than catching `PartialResultError` when you know partial results
 
 ## Timeout and retries
 
-The default timeout is 30 seconds, which is sufficient for most tiers (free: <1s, basic: ~8s, premium: ~13s). The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.
+The default timeout is 30 seconds, which is sufficient for most basic-tier requests. Higher tiers may need a longer timeout depending on queueing and model latency. The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.
 
 ```python
 # Configure timeout and retries
 client = Ice9(
     api_key="ice9_...",
-    timeout=45,         # seconds to wait for analysis (increase for batch tier)
+    timeout=45,         # seconds to wait for analysis (increase for higher tiers)
     max_retries=3,      # number of retries (default: 3, set to 0 to disable)
 )
 
@@ -413,25 +413,30 @@ result = client.analyze("photo.jpg", timeout=60)
 
 The SDK retries reads (`tiers()`, `get_result()`, status polling) but never retries the initial image submission to protect against accidental charges.
 
-## Batch processing
+## Parallel processing
 
-For high-volume batch workloads, use the **batch tier**:
+For high-volume workloads, choose one of the current tiers returned by
+`client.tiers()` and process images in parallel within your account's rate
+limits:
 
 ```python
 from concurrent.futures import ThreadPoolExecutor
 
 def analyze_image(path):
-    return client.analyze(path, tier="batch")
+    return client.analyze(path, tier="extra")
 
 with ThreadPoolExecutor(max_workers=10) as executor:
     results = list(executor.map(analyze_image, image_paths))
 ```
 
-The batch tier is designed for parallel processing and uses LLM consensus (GPT, Gemini, Claude) for maximum accuracy. See `examples/batch_tier.py` for a complete example.
+The `extra` tier includes the widest current model set. See
+`examples/batch_tier.py` for a complete parallel-processing example.
 
 **Key differences:**
-- **Batch tier**: Parallelization supported, LLM consensus, no NSFW support
-- **Basic/Premium tiers**: Real-time optimized, single-image analysis, NSFW support
+- **Basic tier**: Baseline moderation, content analysis, metadata, colors, and object detection
+- **Cloud tier**: Adds cloud captioning, grounding, consensus, OCR, pose, QR, background removal, and XAI services
+- **Extra tier**: Adds the broadest current model set, including local and cloud VLM services
+- **Premium tier**: Adds richer local VLM, grounding, OCR, pose, QR, and background removal services
 
 For pricing details, see [ice9.ai/pricing](https://ice9.ai/pricing).
 
@@ -458,7 +463,7 @@ result = client.analyze("photo.jpg")
 
 Example output:
 ```
-DEBUG:ice9:POST /analyze (tier=free, file=photo.jpg)
+DEBUG:ice9:POST /analyze (tier=basic, file=photo.jpg)
 INFO:ice9:POST /analyze -> 202 Accepted (image_id=12345)
 DEBUG:ice9:GET /status/12345 -> in progress (2/5 services)
 DEBUG:ice9:GET /status/12345 -> in progress (4/5 services)

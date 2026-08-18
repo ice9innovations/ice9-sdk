@@ -98,8 +98,8 @@ async def test_tiers_returns_dict(respx_mock):
 
     async with make_client() as client:
         result = await client.tiers()
-        assert "free" in result
-        assert "nudenet" in result["free"]
+        assert "basic" in result
+        assert "nudenet" in result["basic"]
 
 
 async def test_tiers_raises_on_server_error(respx_mock):
@@ -287,7 +287,7 @@ async def test_analyze_uses_baseline_tier_when_not_specified(respx_mock, png_fil
     assert post_route.called
     request = post_route.calls[0].request
     assert b"tier" in request.content
-    assert b"free" in request.content
+    assert b"basic" in request.content
 
 
 async def test_analyze_polls_until_complete(respx_mock, png_file):

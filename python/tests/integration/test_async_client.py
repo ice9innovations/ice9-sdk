@@ -23,7 +23,7 @@ async def async_client(api_key, base_url):
 
 @pytest.fixture
 async def async_free_result(async_client, test_image):
-    return await async_client.analyze(test_image, tier="free")
+    return await async_client.analyze(test_image, tier="basic")
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ async def async_retrieved_free_result(async_client, async_free_result):
 
 @pytest.fixture
 async def async_stream_results(async_client, test_image):
-    stream = await async_client.analyze(test_image, tier="free", stream=True)
+    stream = await async_client.analyze(test_image, tier="basic", stream=True)
     results = []
     async for result in stream:
         results.append(result)

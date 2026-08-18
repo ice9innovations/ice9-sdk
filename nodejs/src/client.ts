@@ -12,7 +12,7 @@ import {
 } from "./errors.js";
 import { AnalysisResult } from "./result.js";
 
-const BASELINE_TIER = "free";
+const BASELINE_TIER = "basic";
 const DEFAULT_BASE_URL = "https://api.ice9.ai";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const POLL_INTERVAL_MS = 250;

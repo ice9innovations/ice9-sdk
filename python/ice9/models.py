@@ -476,7 +476,7 @@ class AnalysisResult:
     ) -> list[dict]:
         """Return moderation detections from ``nudenet`` above the threshold.
 
-        Higher tiers inherit the free-tier ``nudenet`` signal, so this helper
+        Higher tiers inherit the baseline ``nudenet`` signal, so this helper
         gives all tiers a single moderation-oriented access pattern.
         """
         if self.nudenet is None:

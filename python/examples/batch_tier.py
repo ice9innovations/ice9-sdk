@@ -1,17 +1,17 @@
 """
-Batch processing with the batch tier.
+Parallel processing with the extra tier.
 
-The batch tier uses LLM consensus (GPT, Gemini, Claude) and is designed
-for high-volume batch workloads where you need maximum accuracy across
-diverse image types.
+The extra tier includes the broadest current model set and is useful for
+high-volume workloads where you need richer analysis across diverse image
+types.
 
 Key differences from basic/premium tiers:
 - Optimized for batch processing (parallelization supported)
-- Uses multiple LLMs for consensus-based analysis
-- Does not support NSFW content (LLM safety policies)
+- Uses multiple VLM and consensus services
+- Includes the baseline NSFW/content-analysis services
 - Higher latency per image, but designed for throughput
 
-For real-time analysis of individual images, use basic or premium tier.
+For lower-latency analysis of individual images, use basic or premium tier.
 
 Usage:
     ICE9_API_KEY=... python examples/batch_tier.py image1.jpg image2.jpg ...
@@ -26,9 +26,9 @@ from ice9.exceptions import Ice9Error, PartialResultError
 
 
 def analyze_image(client: Ice9, image_path: str) -> dict:
-    """Analyze a single image on the batch tier."""
+    """Analyze a single image on the extra tier."""
     try:
-        result = client.analyze(image_path, tier="batch")
+        result = client.analyze(image_path, tier="extra")
         return {
             "path": image_path,
             "success": True,
@@ -55,7 +55,7 @@ def analyze_image(client: Ice9, image_path: str) -> dict:
 
 def main(image_paths: list[str], max_workers: int = 10):
     """
-    Process images in parallel using the batch tier.
+    Process images in parallel using the extra tier.
 
     Args:
         image_paths: List of image file paths to process
@@ -63,13 +63,13 @@ def main(image_paths: list[str], max_workers: int = 10):
     """
     client = Ice9()  # reads ICE9_API_KEY from environment
 
-    print(f"Processing {len(image_paths)} images with batch tier...")
+    print(f"Processing {len(image_paths)} images with extra tier...")
     print(f"Max concurrent workers: {max_workers}\n")
 
     start_time = time.time()
     results = []
 
-    # Batch tier supports parallelization - safe to use ThreadPoolExecutor
+    # Independent analyses can be parallelized within your account's rate limits.
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         future_to_path = {
@@ -116,5 +116,5 @@ if __name__ == "__main__":
     images = sys.argv[1:]
 
     # You can adjust max_workers based on your rate limits
-    # Batch tier is designed for batch workloads, but still has rate limits
+    # Parallel workloads still have rate limits
     main(images, max_workers=10)

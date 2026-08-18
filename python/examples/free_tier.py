@@ -1,12 +1,12 @@
 """
-Submit an image to the free tier and print the results.
+Submit an image to the baseline tier and print the results.
 
-The free tier is the moderation baseline for the whole product:
+The basic tier is the moderation baseline for the whole product:
   - nudenet:          raw NSFW detections with boxes and confidence scores
   - content_analysis: higher-level scene and anatomy summary derived from nudenet
 
 It may also include utility signals like colors, metadata, OCR, and QR parsing,
-but the main purpose of the free tier is fast NSFW screening.
+but the main purpose of this example is fast NSFW screening.
 
 Results are usually ready in under a second (P50: 0.5s, P90: 5.6s).
 

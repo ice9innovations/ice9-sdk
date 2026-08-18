@@ -9,7 +9,7 @@ What you get back:
   - A summary caption describing the image
   - A list of nouns the models agreed on (e.g. "dog", "person", "car")
   - Bounding boxes showing where those nouns are in the image
-  - The free-tier NSFW screening baseline
+  - The baseline NSFW screening signals
   - What each individual model said
 
 Usage:
@@ -79,8 +79,8 @@ def main(image_path):
 
     # -----------------------------------------------------------------------
     # Free-tier moderation baseline
-    # Every higher tier inherits nudenet, so this helper works consistently
-    # across free, basic, and premium.
+    # Every tier includes nudenet, so this helper works consistently across
+    # basic, cloud, extra, and premium.
 
     flagged = result.nsfw_detections()
     if flagged:

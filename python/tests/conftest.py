@@ -34,7 +34,7 @@ def png_bytes_io():
 ANALYZE_RESPONSE = {
     "image_id": 42,
     "trace_id": "test-trace-001",
-    "tier": "free",
+    "tier": "basic",
     "services_submitted": ["nudenet", "colors", "metadata", "ocr", "qr"],
     "image_width": 1,
     "image_height": 1,
@@ -192,11 +192,35 @@ STATUS_COMPLETE_WITH_TERMINAL_FAILURE = {
 
 TIERS_RESPONSE = {
     "tiers": {
-        "free":    ["colors", "metadata", "nudenet", "ocr", "qr"],
-        "premium": ["colors", "metadata", "nudenet", "ocr", "qr", "yolo"],
+        "basic": ["colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"],
+        "cloud": [
+            "caption_summary", "colors", "content_analysis", "face", "florence2_grounding",
+            "gemini", "gpt_nano", "haiku", "metadata", "noun_consensus", "nsfw2",
+            "nudenet", "ocr", "pose", "postprocessing_orchestrator", "qr", "rembg",
+            "xai", "yolo_v8",
+        ],
+        "extra": [
+            "blip", "caption_summary", "colors", "content_analysis", "face", "florence2",
+            "florence2_grounding", "gemini", "gpt_nano", "haiku", "joycaption",
+            "metadata", "moondream", "noun_consensus", "nsfw2", "nudenet", "ocr",
+            "ollama", "pose", "postprocessing_orchestrator", "qr", "qwen", "rembg",
+            "xai", "yolo_v8",
+        ],
+        "premium": [
+            "blip", "caption_summary", "colors", "content_analysis", "face", "florence2",
+            "florence2_grounding", "joycaption", "metadata", "moondream",
+            "noun_consensus", "nsfw2", "nudenet", "ocr", "ollama", "pose",
+            "postprocessing_orchestrator", "qr", "qwen", "rembg", "yolo_v8",
+        ],
     }
 }
 
 SERVICES_RESPONSE = {
-    "services": ["blip2", "colors", "florence2", "metadata", "nudenet", "yolo_v8"]
+    "services": [
+        "blip", "caption_summary", "colors", "content_analysis", "face", "florence2",
+        "florence2_grounding", "gemini", "gpt_nano", "haiku", "joycaption",
+        "metadata", "moondream", "noun_consensus", "nsfw2", "nudenet", "ocr",
+        "ollama", "pose", "postprocessing_orchestrator", "qr", "qwen", "rembg",
+        "xai", "yolo_v8",
+    ]
 }

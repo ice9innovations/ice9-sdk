@@ -2,8 +2,7 @@
 Integration tests — basic tier.
 
 Verifies that the SDK works end-to-end for the basic tier, which includes
-VLM services (blip, florence2, moondream, ollama, qwen) in addition to the
-free-tier moderation baseline. VLMs take longer, so a higher timeout is used.
+moderation, content analysis, metadata, colors, and object detection.
 
 Run with:
     ICE9_API_KEY=ice9_... pytest tests/integration/test_basic_tier.py -v
@@ -44,13 +43,13 @@ def basic_tiers(basic_client):
 
 def test_tiers_endpoint_includes_basic(basic_tiers):
     assert "basic" in basic_tiers
-    assert len(basic_tiers["basic"]) > len(basic_tiers["free"])
+    assert set(basic_tiers) == {"basic", "cloud", "extra", "premium"}
 
 
-def test_basic_tier_includes_free_tier_services(basic_tiers):
-    free = set(basic_tiers["free"])
+def test_basic_tier_includes_baseline_services(basic_tiers):
     basic = set(basic_tiers["basic"])
-    assert free.issubset(basic), f"Basic tier missing free-tier services: {free - basic}"
+    expected = {"colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"}
+    assert expected.issubset(basic), f"Basic tier missing services: {expected - basic}"
 
 
 # ---------------------------------------------------------------------------
@@ -104,9 +103,9 @@ def test_all_submitted_services_have_results(basic_result):
 def test_analyze_services_match_tier_config(basic_result, basic_tiers):
     submitted = set(basic_result.services_submitted)
     tier_services = set(basic_tiers["basic"])
-    assert {"blip", "colors", "moondream", "nudenet", "ocr", "qwen"}.issubset(submitted)
+    assert {"colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"}.issubset(submitted)
     assert submitted.issubset(tier_services)
 
 
-def test_basic_has_more_results_than_free(basic_result, basic_tiers):
-    assert len(basic_result.services_submitted) > len(basic_tiers["free"])
+def test_basic_submits_current_baseline_services(basic_result, basic_tiers):
+    assert set(basic_result.services_submitted) == set(basic_tiers["basic"])

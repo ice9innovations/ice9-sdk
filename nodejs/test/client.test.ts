@@ -18,13 +18,14 @@ describe("Ice9 client", () => {
   test("tiers returns API payload", async () => {
     const client = new Ice9({
       apiKey: "ice9_test",
-      fetch: async () => jsonResponse({ tiers: { free: ["nudenet"] } }),
+      fetch: async () => jsonResponse({ tiers: { basic: ["nudenet"] } }),
     });
-    await expect(client.tiers()).resolves.toEqual({ free: ["nudenet"] });
+    await expect(client.tiers()).resolves.toEqual({ basic: ["nudenet"] });
   });
 
   test("analyze supports URL uploads", async () => {
     const calls: string[] = [];
+    let submittedTier: unknown;
     const client = new Ice9({
       apiKey: "ice9_test",
       fetch: async (input, init) => {
@@ -37,6 +38,7 @@ describe("Ice9 client", () => {
           });
         }
         if (url.endsWith("/analyze")) {
+          submittedTier = (init?.body as FormData).get("tier");
           return jsonResponse(ANALYZE_RESPONSE, { status: 202 });
         }
         if (url.endsWith("/status/42") || url.endsWith("/results/42")) {
@@ -49,6 +51,7 @@ describe("Ice9 client", () => {
     const result = await client.analyze("https://example.com/photo.jpg");
     expect(result.imageId).toBe(42);
     expect(calls).toContain("https://example.com/photo.jpg");
+    expect(submittedTier).toBe("basic");
   });
 
   test("raises rate limit errors with retry-after", async () => {

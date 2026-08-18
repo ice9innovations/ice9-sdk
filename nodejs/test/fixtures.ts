@@ -1,7 +1,7 @@
 export const ANALYZE_RESPONSE = {
   image_id: 42,
   trace_id: "test-trace-001",
-  tier: "free",
+  tier: "basic",
   services_submitted: ["nudenet", "colors", "metadata", "ocr", "qr"],
   image_width: 1,
   image_height: 1,
