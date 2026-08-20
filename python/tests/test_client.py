@@ -514,6 +514,20 @@ def test_stream_yields_partial_results(png_file, respx_mock):
     assert len(partials) == 3
 
 
+def test_stream_429_raises_rate_limit(png_file, respx_mock):
+    respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(
+            429,
+            json={"error": "rate limit exceeded"},
+            headers={"Retry-After": "5"},
+        )
+    )
+    with pytest.raises(RateLimitError) as exc_info:
+        list(make_client().analyze(png_file, stream=True))
+    assert exc_info.value.retry_after == 5.0
+
+
 def test_stream_partial_yields_have_is_complete_false(png_file, respx_mock):
     respx_mock.post(f"{BASE}/analyze").mock(return_value=httpx.Response(202, json=ANALYZE_RESPONSE))
     respx_mock.get(f"{BASE}/stream/42").mock(

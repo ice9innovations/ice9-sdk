@@ -365,8 +365,25 @@ class Ice9:
                               client's default_timeout.
             stream:           If True, return a generator that yields a partial
                               AnalysisResult each time a service completes, followed
-                              by the final complete result. If False (default), block
-                              until all services are done and return the full result.
+                              by the final complete result, waiting via the /stream
+                              SSE endpoint (one held connection per call). If False
+                              (default), block until all services are done and
+                              return the full result directly, waiting via /status
+                              polling instead.
+
+                              NOTE (2026-08-19): stream=True holds an HTTP
+                              connection open for the whole analysis duration,
+                              unlike a poll which is in-and-out in milliseconds.
+                              Under real concurrency this can saturate a small
+                              server-side thread pool (observed: gunicorn -w 2
+                              --threads 4 = 8 threads) and stall ALL traffic on
+                              that server, including new submissions -- confirmed
+                              via a production throughput collapse to ~1/sec when
+                              defaulted on at 8 concurrent callers. Do not flip
+                              this default, or recommend stream=True at any real
+                              concurrency, without a server-side capacity fix
+                              first (e.g. more/async workers, or a connection
+                              budget separate from request-handling threads).
             raise_on_partial: If True (default), raise PartialResultError when some
                               services fail. If False, return the result with
                               services_failed populated and log a warning.
@@ -397,7 +414,6 @@ class Ice9:
 
         self._poll(image_id, deadline)
         result = self.get_result(image_id)
-
         return self._handle_partial_result(result, raise_on_partial)
 
     def _handle_partial_result(
@@ -647,6 +663,9 @@ class Ice9:
                     raise AuthError("Invalid or deactivated API key")
                 if resp.status_code == 404:
                     raise Ice9Error(f"Image {image_id} not found")
+                if resp.status_code == 429:
+                    retry_after = _parse_retry_after(resp)
+                    raise RateLimitError("Rate limit exceeded on /stream", retry_after=retry_after)
                 if resp.status_code != 200:
                     detail = _error_message(resp)
                     msg = f"{resp.status_code}: {detail}" if detail else f"Unexpected status {resp.status_code} from /stream"

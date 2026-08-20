@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `analyze(stream=True)` now raises `RateLimitError` (with `retry_after`) on HTTP 429 from `/stream`, matching the handling `/status` and `/analyze` already had. Previously a 429 on the initial stream connection surfaced as a generic `Ice9Error`, which callers retrying on `RateLimitError` specifically would not catch.
+
 ## [0.0.21] - 2026-08-18
 
 ### Changed
