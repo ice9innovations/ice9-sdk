@@ -8,8 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.22] - 2026-08-19
+
 ### Fixed
 - `analyze(stream=True)` now raises `RateLimitError` (with `retry_after`) on HTTP 429 from `/stream`, matching the handling `/status` and `/analyze` already had. Previously a 429 on the initial stream connection surfaced as a generic `Ice9Error`, which callers retrying on `RateLimitError` specifically would not catch.
+
+### Changed
+- `DEFAULT_TIMEOUT` raised from 30s to 95s. Image payloads referenced via Valkey expire 90s after submission, so nothing can complete after that regardless of client patience -- but 30s was cutting off jobs that were still genuinely in flight and would have completed within the real 90s window, forcing a premature `AnalysisTimeoutError` and a client-side retry that just restarts the same 90s clock. Confirmed during sustained-load testing on a bulk analysis workload: a large share of recorded "timeout" failures were jobs that would have succeeded given the real ~60 extra seconds they were owed. If you were relying on the 30s default for responsiveness, pass `timeout=30` explicitly.
 
 ## [0.0.21] - 2026-08-18
 

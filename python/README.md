@@ -389,7 +389,7 @@ This is cleaner than catching `PartialResultError` when you know partial results
 
 ## Timeout and retries
 
-The default timeout is 30 seconds, which is sufficient for most basic-tier requests. Higher tiers may need a longer timeout depending on queueing and model latency. The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.
+The default timeout is 95 seconds. Submitted images are only guaranteed available for ~90 seconds server-side, so nothing can complete after that regardless of how long the client waits -- 95s gives a small margin past that ceiling rather than the client giving up early on a job that was still genuinely in progress. Pass a shorter `timeout=` explicitly if your use case wants faster failure than that. The SDK automatically retries transient errors (rate limits, 5xx, connection errors) up to 3 times with exponential backoff.
 
 ```python
 # Configure timeout and retries

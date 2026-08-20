@@ -40,7 +40,14 @@ class Ice9:
     """
 
     DEFAULT_BASE_URL = "https://api.ice9.ai"
-    DEFAULT_TIMEOUT = 30.0
+    # 95s: image payloads referenced via Valkey expire 90s after submission,
+    # so nothing can complete after that regardless of client patience -- but
+    # 30s (the old default) was cutting off jobs that were still genuinely in
+    # flight and would have completed within the real 90s window, forcing
+    # premature AnalysisTimeoutError + a client-side retry that just restarts
+    # the same 90s clock. 95s gives a small margin past the true ceiling
+    # instead of giving up 60s early.
+    DEFAULT_TIMEOUT = 95.0
     POLL_INTERVAL = 0.25
     DEFAULT_MAX_RETRIES = 3
 
