@@ -32,6 +32,10 @@ def make_client(**kwargs):
     return AsyncIce9(api_key="ice9_test", **kwargs)
 
 
+async def test_default_timeout_matches_sync_client():
+    assert AsyncIce9.DEFAULT_TIMEOUT == 95.0
+
+
 def mock_final_result(respx_mock, payload=STATUS_COMPLETE, image_id=42):
     respx_mock.get(f"{BASE}/results/{image_id}").mock(
         return_value=httpx.Response(200, json=payload)
@@ -548,6 +552,26 @@ async def test_stream_returns_async_generator(respx_mock, png_file):
         # Should yield at least the final result
         assert len(results) >= 1
         assert results[-1].is_complete is True
+
+
+async def test_stream_429_raises_rate_limit_error(respx_mock, png_file):
+    respx_mock.post(f"{BASE}/analyze").mock(
+        return_value=httpx.Response(202, json=ANALYZE_RESPONSE)
+    )
+    respx_mock.get(f"{BASE}/stream/42").mock(
+        return_value=httpx.Response(
+            429,
+            json={"error": "rate limit exceeded"},
+            headers={"Retry-After": "5"},
+        )
+    )
+
+    async with make_client() as client:
+        generator = await client.analyze(png_file, stream=True)
+        with pytest.raises(RateLimitError) as exc_info:
+            async for _result in generator:
+                pass
+    assert exc_info.value.retry_after == 5.0
 
 
 async def test_stream_yields_partial_results(respx_mock, png_file):

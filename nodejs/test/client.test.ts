@@ -26,6 +26,7 @@ describe("Ice9 client", () => {
   test("analyze supports URL uploads", async () => {
     const calls: string[] = [];
     let submittedTier: unknown;
+    let submittedFile: File | null = null;
     const client = new Ice9({
       apiKey: "ice9_test",
       fetch: async (input, init) => {
@@ -39,6 +40,7 @@ describe("Ice9 client", () => {
         }
         if (url.endsWith("/analyze")) {
           submittedTier = (init?.body as FormData).get("tier");
+          submittedFile = (init?.body as FormData).get("file") as File;
           return jsonResponse(ANALYZE_RESPONSE, { status: 202 });
         }
         if (url.endsWith("/status/42") || url.endsWith("/results/42")) {
@@ -52,6 +54,48 @@ describe("Ice9 client", () => {
     expect(result.imageId).toBe(42);
     expect(calls).toContain("https://example.com/photo.jpg");
     expect(submittedTier).toBe("basic");
+    expect(submittedFile).toMatchObject({ type: "image/png", name: "photo.png" });
+  });
+
+  test("stream inactivity rejects the iterator instead of throwing out of band", async () => {
+    const client = new Ice9({
+      apiKey: "ice9_test",
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.endsWith("/analyze")) {
+          return jsonResponse(ANALYZE_RESPONSE, { status: 202 });
+        }
+        if (url.endsWith("/stream/42")) {
+          return new Response(new ReadableStream({
+            start(controller) {
+              init?.signal?.addEventListener("abort", () => controller.error(init.signal?.reason));
+            },
+          }), { status: 200, headers: { "content-type": "text/event-stream" } });
+        }
+        return new Response(null, { status: 404 });
+      },
+    });
+
+    const consume = async () => {
+      for await (const _result of client.analyze(MINIMAL_PNG, { stream: true, timeout: 0.01 })) {
+        // No events are expected before the inactivity timeout.
+      }
+    };
+    await expect(consume()).rejects.toThrow("Stream for image 42 stalled");
+  });
+
+  test("preserves the final network error as the Ice9Error cause", async () => {
+    const failure = new Error("socket closed");
+    const client = new Ice9({
+      apiKey: "ice9_test",
+      maxRetries: 0,
+      fetch: async () => { throw failure; },
+    });
+
+    await expect(client.services()).rejects.toMatchObject({
+      message: expect.stringContaining("socket closed"),
+      cause: failure,
+    });
   });
 
   test.each([
@@ -131,6 +175,47 @@ describe("Ice9 client", () => {
     await expect(client.services()).rejects.toMatchObject({
       retryAfter: 5,
     });
+  });
+
+  test("polling fails immediately on authentication errors", async () => {
+    let statusCalls = 0;
+    const client = new Ice9({
+      apiKey: "ice9_test",
+      fetch: async (input) => {
+        const url = String(input);
+        if (url.endsWith("/analyze")) {
+          return jsonResponse(ANALYZE_RESPONSE, { status: 202 });
+        }
+        statusCalls += 1;
+        return jsonResponse({ error: "invalid key" }, { status: 401 });
+      },
+    });
+
+    await expect(client.analyze(MINIMAL_PNG)).rejects.toThrow(AuthError);
+    expect(statusCalls).toBe(1);
+  });
+
+  test("polling honors rate limits without consuming the transient-error budget", async () => {
+    let statusCalls = 0;
+    const client = new Ice9({
+      apiKey: "ice9_test",
+      fetch: async (input) => {
+        const url = String(input);
+        if (url.endsWith("/analyze")) {
+          return jsonResponse(ANALYZE_RESPONSE, { status: 202 });
+        }
+        if (url.endsWith("/status/42")) {
+          statusCalls += 1;
+          return statusCalls < 4
+            ? jsonResponse({ error: "rate limited" }, { status: 429, headers: { "Retry-After": "0" } })
+            : jsonResponse(STATUS_COMPLETE, { status: 200 });
+        }
+        return jsonResponse(STATUS_COMPLETE, { status: 200 });
+      },
+    });
+
+    await expect(client.analyze(MINIMAL_PNG)).resolves.toMatchObject({ imageId: 42 });
+    expect(statusCalls).toBe(4);
   });
 
   test("rejects non-image URLs", async () => {

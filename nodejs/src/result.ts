@@ -95,13 +95,14 @@ export class ServiceResult {
   }
 
   flaggedPredictions(options: { labels?: Set<string> | string[]; minConfidence?: number } = {}) {
-    const labels =
-      options.labels instanceof Set ? options.labels : new Set(options.labels ?? []);
+    const labels = options.labels instanceof Set
+      ? options.labels
+      : new Set(options.labels ?? CENSOR_LABELS);
     const minConfidence = options.minConfidence ?? 0.5;
     return this.predictions.filter(
       (prediction) =>
         Boolean(prediction.label) &&
-        (labels.size === 0 || labels.has(prediction.label!)) &&
+        labels.has(prediction.label!) &&
         (prediction.confidence ?? 0) >= minConfidence,
     );
   }
@@ -485,30 +486,41 @@ export class AnalysisResult {
       );
     }
 
+    const postprocessingGroups = new Map<string, Array<Record<string, unknown>>>();
     for (const entry of data.postprocessing ?? []) {
       if (!isObject(entry) || typeof entry.service !== "string") {
         continue;
       }
-      if (serviceResults[entry.service]) {
+      const entries = postprocessingGroups.get(entry.service) ?? [];
+      entries.push(entry);
+      postprocessingGroups.set(entry.service, entries);
+    }
+
+    for (const [service, entries] of postprocessingGroups) {
+      if (serviceResults[service]) {
         continue;
       }
-      const current = serviceResults[entry.service];
-      const unwrapped = unwrapServiceEntry(entry);
-      const clusterId = unwrapped.cluster_id;
-      const predictions = Array.isArray(unwrapped.predictions)
-        ? unwrapped.predictions.map((prediction) =>
-            isObject(prediction) && clusterId != null ? { ...prediction, cluster_id: clusterId } : prediction,
-          )
-        : [];
-
-      if (current) {
-        current._data.predictions = [...current.predictions, ...predictions];
-      } else {
-        serviceResults[entry.service] = new ServiceResult(
-          predictions.length > 0 ? { predictions } : unwrapped,
+      if (entries.length === 1) {
+        const entry = entries[0];
+        serviceResults[service] = new ServiceResult(
+          unwrapServiceEntry(entry),
           typeof entry.processing_time === "number" ? entry.processing_time : undefined,
         );
+        continue;
       }
+
+      const predictions = entries.flatMap((entry) => {
+        const unwrapped = unwrapServiceEntry(entry);
+        const clusterId = unwrapped.cluster_id;
+        return Array.isArray(unwrapped.predictions)
+          ? unwrapped.predictions.map((prediction) =>
+              isObject(prediction) && clusterId != null
+                ? { ...prediction, cluster_id: clusterId }
+                : prediction,
+            )
+          : [];
+      });
+      serviceResults[service] = new ServiceResult({ predictions });
     }
 
     return new AnalysisResult({

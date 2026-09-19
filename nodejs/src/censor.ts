@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import sharp from "sharp";
+import { readFile, writeFile } from "node:fs/promises";
+import { extname } from "node:path";
 
 import { Ice9Error } from "./errors.js";
 import type { AnalysisResult, BBox, Prediction } from "./result.js";
@@ -20,6 +20,37 @@ export interface CensorOptions {
   labels?: Set<string> | string[];
   minConfidence?: number;
   output?: string;
+  format?: "jpeg" | "png" | "webp";
+}
+
+async function loadSharp() {
+  try {
+    return (await import("sharp")).default;
+  } catch (cause) {
+    throw new Ice9Error(
+      "Image censoring requires the optional 'sharp' package. Install it with: npm install sharp",
+      { cause },
+    );
+  }
+}
+
+function outputFormat(
+  requested: CensorOptions["format"],
+  output: string | undefined,
+  inputFormat: string | undefined,
+): "jpeg" | "png" | "webp" {
+  if (requested) return requested;
+  const extension = output ? extname(output).toLowerCase() : "";
+  if (extension === ".jpg" || extension === ".jpeg") return "jpeg";
+  if (extension === ".png") return "png";
+  if (extension === ".webp") return "webp";
+  if (output && extension) {
+    throw new TypeError(
+      `Cannot infer a supported censor output format from ${JSON.stringify(extension)}. ` +
+      "Use a .jpg, .png, or .webp filename, or set options.format.",
+    );
+  }
+  return inputFormat === "png" || inputFormat === "webp" ? inputFormat : "jpeg";
 }
 
 function clampBox(bbox: BBox, width: number, height: number) {
@@ -48,6 +79,7 @@ export async function censor(
   image: string | Buffer | Uint8Array,
   options: CensorOptions = {},
 ): Promise<Buffer> {
+  const sharp = await loadSharp();
   if (!result.nudenet) {
     throw new Ice9Error(
       "nudenet results are not present — was nudenet included in the tier?",
@@ -117,9 +149,15 @@ export async function censor(
     current = current.composite([{ input: pixelated, left: box.x1, top: box.y1 }]);
   }
 
-  const output = await current.jpeg().toBuffer();
+  const format = outputFormat(options.format, options.output, meta.format);
+  const output = await (format === "png"
+    ? current.png()
+    : format === "webp"
+      ? current.webp()
+      : current.jpeg()
+  ).toBuffer();
   if (options.output) {
-    await sharp(output).toFile(options.output);
+    await writeFile(options.output, output);
   }
   return output;
 }

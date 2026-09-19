@@ -1,7 +1,10 @@
 export class Ice9Error extends Error {
-  constructor(message: string) {
-    super(message);
+  readonly status?: number;
+
+  constructor(message: string, options?: ErrorOptions, status?: number) {
+    super(message, options);
     this.name = "Ice9Error";
+    this.status = status;
   }
 }
 

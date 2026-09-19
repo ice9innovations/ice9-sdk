@@ -41,7 +41,7 @@ class AsyncIce9:
     """
 
     DEFAULT_BASE_URL = "https://api.ice9.ai"
-    DEFAULT_TIMEOUT = 30.0
+    DEFAULT_TIMEOUT = 95.0
     POLL_INTERVAL = 0.25
     DEFAULT_MAX_RETRIES = 3
 
@@ -663,6 +663,9 @@ class AsyncIce9:
                     raise AuthError("Invalid or deactivated API key")
                 if resp.status_code == 404:
                     raise Ice9Error(f"Image {image_id} not found")
+                if resp.status_code == 429:
+                    retry_after = _parse_retry_after(resp)
+                    raise RateLimitError("Rate limit exceeded on /stream", retry_after=retry_after)
                 if resp.status_code != 200:
                     detail = _error_message(resp)
                     msg = f"{resp.status_code}: {detail}" if detail else f"Unexpected status {resp.status_code} from /stream"

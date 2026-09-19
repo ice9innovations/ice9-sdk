@@ -35,6 +35,9 @@ if (image.isNsfw) {
 - `image.category` exposes the canonical content-analysis category when available.
 - `image.scene` adds product-shaped helpers on top of raw service payloads.
 - `image.moderation.censor()` supports fill and pixelate redaction methods.
+- Censoring is optional. Install `sharp` (`npm install sharp`) only when using
+  `image.moderation.censor()`; JPEG, PNG, and WebP output formats are preserved
+  or selected from the output filename.
 
 ## Repository
 

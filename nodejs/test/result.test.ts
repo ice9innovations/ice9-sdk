@@ -95,6 +95,41 @@ describe("AnalysisResult", () => {
     expect(result.isNsfw).toBe(true);
   });
 
+  test("an explicit empty moderation label set matches nothing", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    (status.service_results.nudenet as any).predictions = [
+      { label: "FEMALE_BREAST_EXPOSED", confidence: 0.9 },
+    ];
+    const result = AnalysisResult.fromStatus(status);
+    expect(result.nsfwDetections({ labels: [] })).toEqual([]);
+  });
+
+  test("aggregates multi-cluster postprocessing predictions", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    status.postprocessing = [
+      { service: "colors_post", data: { cluster_id: "dog", predictions: [{ hex: "#ff0000" }] } },
+      { service: "colors_post", data: { cluster_id: "floor", predictions: [{ hex: "#00ff00" }] } },
+    ];
+    const result = AnalysisResult.fromStatus(status);
+    expect((result as any).colors_post.predictions).toEqual([
+      { hex: "#ff0000", cluster_id: "dog" },
+      { hex: "#00ff00", cluster_id: "floor" },
+    ]);
+  });
+
+  test("preserves all fields from a single postprocessing entry", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    status.postprocessing = [
+      { service: "face_post", data: { model: "face-v2", predictions: [{ label: "face" }] } },
+    ];
+    const result = AnalysisResult.fromStatus(status);
+    expect((result as any).face_post._data).toEqual({
+      service: "face_post",
+      model: "face-v2",
+      predictions: [{ label: "face" }],
+    });
+  });
+
   test("terminal failures preserve metadata", () => {
     const result = AnalysisResult.fromStatus(STATUS_COMPLETE_WITH_TERMINAL_FAILURE);
     expect((result as any).pose.error_message).toBe("worker returned terminal failure");

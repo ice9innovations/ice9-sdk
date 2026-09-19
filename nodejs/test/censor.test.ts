@@ -78,4 +78,30 @@ describe("censor", () => {
     const written = await readFile(output);
     expect(written.byteLength).toBeGreaterThan(0);
   });
+
+  test("preserves PNG output and returns the bytes written", async () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    status.service_results.nudenet = { data: { predictions: NUDENET_PREDICTIONS } } as never;
+    const result = AnalysisResult.fromStatus(status);
+    const image = await sharp(await gradientImage(500, 600)).png().toBuffer();
+    const dir = await mkdtemp(join(tmpdir(), "ice9-nodejs-"));
+    const output = join(dir, "output.png");
+
+    const censored = await result.moderation.censor(image, { output });
+    const written = await readFile(output);
+    expect(censored.subarray(0, 8)).toEqual(Buffer.from("89504e470d0a1a0a", "hex"));
+    expect(written).toEqual(censored);
+  });
+
+  test("uses an explicit WebP output format", async () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    status.service_results.nudenet = { data: { predictions: NUDENET_PREDICTIONS } } as never;
+    const result = AnalysisResult.fromStatus(status);
+
+    const censored = await result.moderation.censor(await gradientImage(500, 600), {
+      format: "webp",
+    });
+    expect(censored.subarray(0, 4).toString("ascii")).toBe("RIFF");
+    expect(censored.subarray(8, 12).toString("ascii")).toBe("WEBP");
+  });
 });

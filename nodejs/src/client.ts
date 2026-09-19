@@ -1,4 +1,3 @@
-import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
@@ -14,7 +13,7 @@ import { AnalysisResult } from "./result.js";
 
 const BASELINE_TIER = "basic";
 const DEFAULT_BASE_URL = "https://api.ice9.ai";
-const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_TIMEOUT_MS = 95_000;
 const POLL_INTERVAL_MS = 250;
 const DEFAULT_MAX_RETRIES = 3;
 const MAX_URL_DOWNLOAD_BYTES = 10 * 1024 * 1024;
@@ -140,6 +139,7 @@ function sleep(ms: number) {
 
 async function* sseEvents(
   stream: ReadableStream<Uint8Array>,
+  onActivity?: () => void,
 ): AsyncGenerator<{ event: string | null; data: string | null }> {
   const decoder = new TextDecoder();
   let buffer = "";
@@ -147,6 +147,7 @@ async function* sseEvents(
   let data: string | null = null;
 
   for await (const chunk of stream) {
+    onActivity?.();
     buffer += decoder.decode(chunk, { stream: true });
 
     while (true) {
@@ -192,7 +193,7 @@ export class Ice9 {
 
     this.apiKey = apiKey;
     this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
-    this.timeoutMs = Math.round((options.timeout ?? 30) * 1000);
+    this.timeoutMs = Math.round((options.timeout ?? DEFAULT_TIMEOUT_MS / 1000) * 1000);
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.fetchImpl = options.fetch ?? fetch;
   }
@@ -262,14 +263,14 @@ export class Ice9 {
             "X-API-Key": this.apiKey,
             ...(init.headers ?? {}),
           },
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: init.signal ?? AbortSignal.timeout(this.timeoutMs),
         });
 
         if (response.status === 401) {
           throw new AuthError("Invalid or deactivated API key");
         }
         if (response.status === 404 && (path.startsWith("/results/") || path.startsWith("/status/"))) {
-          throw new Ice9Error(`Image ${path.split("/").at(-1)} not found`);
+          throw new Ice9Error(`Image ${path.split("/").at(-1)} not found`, undefined, 404);
         }
         if (response.status === 429) {
           if (attempt < this.maxRetries && retryable) {
@@ -292,6 +293,8 @@ export class Ice9 {
           const detail = await errorMessage(response);
           throw new Ice9Error(
             detail ? `${response.status}: ${detail}` : `Unexpected status ${response.status} from ${path}`,
+            undefined,
+            response.status,
           );
         }
         return response;
@@ -307,7 +310,8 @@ export class Ice9 {
       }
     }
 
-    throw new Ice9Error(`Request to ${path} failed`) as never ?? lastNetworkError;
+    const detail = lastNetworkError instanceof Error ? `: ${lastNetworkError.message}` : "";
+    throw new Ice9Error(`Request to ${path} failed${detail}`, { cause: lastNetworkError });
   }
 
   private async upload(image: string | URL | Buffer | Uint8Array, options: AnalyzeOptions) {
@@ -323,7 +327,7 @@ export class Ice9 {
 
     if (typeof image === "string") {
       const bytes = await readFile(image);
-      const file = multipartImage(bytes, undefined, basename(image));
+      const file = multipartImage(bytes, options.mediaType, options.filename ?? basename(image));
       form.set("file", file.blob, file.filename);
     } else {
       const file = multipartImage(Buffer.from(image), options.mediaType, options.filename);
@@ -340,6 +344,9 @@ export class Ice9 {
     try {
       response = await this.fetchImpl(url, { signal: AbortSignal.timeout(this.timeoutMs) });
     } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") {
+        throw new ImageRejectedError(`Timeout downloading image from URL: ${url}`);
+      }
       throw new ImageRejectedError(`Could not connect to URL: ${url}`);
     }
 
@@ -355,16 +362,27 @@ export class Ice9 {
       throw new ImageRejectedError(`URL does not point to an image (content-type: ${contentType}): ${url}`);
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    if (arrayBuffer.byteLength > MAX_URL_DOWNLOAD_BYTES) {
-      throw new ImageRejectedError(`Image at URL exceeds 10MB limit: ${url}`);
+    if (!response.body) {
+      throw new ImageRejectedError(`Image download did not include a response body: ${url}`);
     }
 
+    const chunks: Buffer[] = [];
+    let totalBytes = 0;
+    for await (const chunk of response.body) {
+      totalBytes += chunk.byteLength;
+      if (totalBytes > MAX_URL_DOWNLOAD_BYTES) {
+        throw new ImageRejectedError(`Image at URL exceeds 10MB limit: ${url}`);
+      }
+      chunks.push(Buffer.from(chunk));
+    }
+    const bytes = Buffer.concat(chunks);
+
     const filename = basename(new URL(url).pathname) || "download.jpg";
+    const file = multipartImage(bytes, undefined, filename);
     const form = new FormData();
     form.set("tier", tier);
     form.set("image_group", imageGroup);
-    form.set("file", new Blob([arrayBuffer], { type: contentType }), filename.includes(".") ? filename : "download.jpg");
+    form.set("file", file.blob, file.filename);
 
     const uploadResponse = await this.request("/analyze", { method: "POST", body: form }, false);
     const body = (await uploadResponse.json()) as { image_id: number };
@@ -384,7 +402,19 @@ export class Ice9 {
         consecutiveErrors = 0;
         await sleep(Math.min(POLL_INTERVAL_MS, Math.max(0, deadlineMs - Date.now())));
       } catch (error) {
-        if (error instanceof AuthError || error instanceof Ice9Error) {
+        if (error instanceof AuthError) {
+          throw error;
+        }
+        if (error instanceof RateLimitError) {
+          consecutiveErrors = 0;
+          const waitMs = (error.retryAfter ?? POLL_INTERVAL_MS / 1000) * 1000;
+          await sleep(Math.min(waitMs, Math.max(0, deadlineMs - Date.now())));
+          continue;
+        }
+        if (error instanceof Ice9Error) {
+          if (error.status != null && error.status < 500) {
+            throw error;
+          }
           consecutiveErrors += 1;
           if (consecutiveErrors > 2) {
             throw error;
@@ -439,44 +469,46 @@ export class Ice9 {
   }
 
   private async *stream(imageId: number, inactivityTimeoutMs: number, raiseOnPartial: boolean) {
-    const response = await this.request(
-      `/stream/${imageId}`,
-      {
-        method: "GET",
-        headers: { Accept: "text/event-stream" },
-      },
-      false,
-    );
-
-    if (!response.body) {
-      throw new Ice9Error("Streaming response did not include a body");
-    }
-
-    const accumulated: Record<string, Record<string, unknown>> = {};
+    const controller = new AbortController();
     let timeoutHandle: NodeJS.Timeout | undefined;
+    let timedOut = false;
 
     const resetTimeout = () => {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);
       }
       timeoutHandle = setTimeout(() => {
-        throw new AnalysisTimeoutError(
-          `Stream for image ${imageId} stalled — no data received for ${Math.round(
-            inactivityTimeoutMs / 1000,
-          )}s`,
-        );
+        timedOut = true;
+        controller.abort();
       }, inactivityTimeoutMs);
     };
 
-    resetTimeout();
-
     try {
-      for await (const message of sseEvents(response.body)) {
-        resetTimeout();
+      const response = await this.request(
+        `/stream/${imageId}`,
+        {
+          method: "GET",
+          headers: { Accept: "text/event-stream" },
+          signal: controller.signal,
+        },
+        false,
+      );
+      if (!response.body) {
+        throw new Ice9Error("Streaming response did not include a body");
+      }
+
+      const accumulated: Record<string, Record<string, unknown>> = {};
+      resetTimeout();
+      for await (const message of sseEvents(response.body, resetTimeout)) {
         if (!message.event || !message.data) {
           continue;
         }
-        const payload = JSON.parse(message.data) as Record<string, unknown>;
+        let payload: Record<string, unknown>;
+        try {
+          payload = JSON.parse(message.data) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
 
         if (message.event === "service_complete") {
           const service = String(payload.service);
@@ -520,6 +552,15 @@ export class Ice9 {
           );
         }
       }
+    } catch (error) {
+      if (timedOut) {
+        throw new AnalysisTimeoutError(
+          `Stream for image ${imageId} stalled — no data received for ${Math.round(
+            inactivityTimeoutMs / 1000,
+          )}s`,
+        );
+      }
+      throw error;
     } finally {
       if (timeoutHandle) {
         clearTimeout(timeoutHandle);

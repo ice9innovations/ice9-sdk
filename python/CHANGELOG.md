@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.24] - 2026-09-19
+
+### Fixed
+- Align `AsyncIce9` with the synchronous client's 95-second default timeout.
+- Raise `RateLimitError` with `retry_after` for HTTP 429 responses from async
+  streaming, matching the synchronous client.
+
 ## [0.0.23] - 2026-09-19
 
 ### Fixed
