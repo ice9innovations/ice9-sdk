@@ -29,6 +29,9 @@ if (image.isNsfw) {
 ## Notes
 
 - `analyze()` accepts local file paths, URLs, and in-memory image bytes.
+- JPEG, PNG, WebP, HEIC, and HEIF bytes are detected automatically. `mediaType` and `filename`
+  may be supplied for in-memory uploads; the media type is validated and the
+  filename extension is normalized to match.
 - `image.category` exposes the canonical content-analysis category when available.
 - `image.scene` adds product-shaped helpers on top of raw service payloads.
 - `image.moderation.censor()` supports fill and pixelate redaction methods.

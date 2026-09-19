@@ -240,6 +240,25 @@ async def test_analyze_accepts_file_object(respx_mock, png_bytes_io):
     assert result.image_id == 42
 
 
+async def test_analyze_sets_accurate_multipart_metadata(respx_mock):
+    route = respx_mock.post(f"{BASE}/analyze").mock(
+        return_value=httpx.Response(202, json=ANALYZE_RESPONSE)
+    )
+    respx_mock.get(f"{BASE}/status/42").mock(
+        return_value=httpx.Response(200, json=STATUS_COMPLETE)
+    )
+    mock_final_result(respx_mock)
+
+    async with make_client() as client:
+        await client.analyze(
+            io.BytesIO(b"RIFF\x04\x00\x00\x00WEBP"), filename="asset.bin"
+        )
+
+    body = route.calls.last.request.content
+    assert b'filename="asset.webp"' in body
+    assert b"Content-Type: image/webp" in body
+
+
 async def test_analyze_accepts_url(respx_mock):
     from .conftest import MINIMAL_PNG
 

@@ -19,6 +19,7 @@ from .exceptions import (
     RateLimitError,
 )
 from .models import AnalysisResult
+from ._image import prepare_upload
 
 logger = logging.getLogger("ice9")
 BASELINE_TIER = "basic"
@@ -357,6 +358,8 @@ class Ice9:
         timeout: float | None = None,
         stream: bool = False,
         raise_on_partial: bool = True,
+        media_type: str | None = None,
+        filename: str | None = None,
     ):
         """Submit an image for analysis and return results.
 
@@ -394,6 +397,10 @@ class Ice9:
             raise_on_partial: If True (default), raise PartialResultError when some
                               services fail. If False, return the result with
                               services_failed populated and log a warning.
+            media_type:      Optional MIME type for an in-memory upload. It is
+                              validated against the JPEG, PNG, or WebP signature.
+            filename:        Optional multipart filename. Its extension is
+                              normalized to match the detected image type.
 
         Returns:
             AnalysisResult (blocking) or generator of AnalysisResult (streaming).
@@ -414,7 +421,7 @@ class Ice9:
         deadline = time.monotonic() + effective_timeout
         tier = tier or BASELINE_TIER
 
-        image_id = self._upload(image, tier, image_group)
+        image_id = self._upload(image, tier, image_group, media_type, filename)
 
         if stream:
             return self._stream(image_id, deadline, raise_on_partial)
@@ -485,7 +492,7 @@ class Ice9:
         final = self.get_result(image_id)
         return self._merge_stream_accumulated_results(final, accumulated)
 
-    def _upload(self, image: str | Path | BinaryIO, tier: str | None, image_group: str) -> int:
+    def _upload(self, image: str | Path | BinaryIO, tier: str | None, image_group: str, media_type: str | None, filename: str | None) -> int:
         if isinstance(image, (str, Path)):
             image_str = str(image)
             # Check if it's a URL
@@ -495,10 +502,10 @@ class Ice9:
                 # Local file path
                 path = Path(image)
                 with path.open("rb") as f:
-                    return self._post_file(f, path.name, tier, image_group)
+                    return self._post_file(f, filename or path.name, tier, image_group, media_type)
         else:
-            name = getattr(image, "name", "upload.jpg")
-            return self._post_file(image, name, tier, image_group)
+            name = filename or getattr(image, "name", "upload")
+            return self._post_file(image, name, tier, image_group, media_type)
 
     def _upload_from_url(self, url: str, tier: str | None, image_group: str) -> int:
         """Download an image from a URL and upload it to the API."""
@@ -546,7 +553,8 @@ class Ice9:
         fileobj = io.BytesIO(image_bytes)
         return self._post_file(fileobj, filename, tier, image_group)
 
-    def _post_file(self, fileobj: BinaryIO, filename: str, tier: str | None, image_group: str) -> int:
+    def _post_file(self, fileobj: BinaryIO, filename: str, tier: str | None, image_group: str, media_type: str | None = None) -> int:
+        fileobj, filename, detected_type = prepare_upload(fileobj, filename, media_type)
         url = f"{self._base_url}/analyze"
         form_data: dict = {"image_group": image_group}
         form_data["tier"] = tier
@@ -556,7 +564,7 @@ class Ice9:
         try:
             resp = self._client.post(
                 url,
-                files={"file": (filename, fileobj, "image/jpeg")},
+                files={"file": (filename, fileobj, detected_type)},
                 data=form_data,
             )
         except httpx.ConnectError as exc:

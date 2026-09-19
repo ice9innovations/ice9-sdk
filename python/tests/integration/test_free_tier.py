@@ -64,7 +64,8 @@ def test_tiers_endpoint_includes_basic(free_tiers):
 def test_services_endpoint_returns_catalog(free_services, free_tiers):
     assert isinstance(free_services, list)
     assert len(free_services) > 0
-    expected = {"colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"}
+    # content_analysis is tier post-processing, not an executable /services entry.
+    expected = {"colors", "metadata", "nsfw2", "nudenet", "yolo_v8"}
     assert expected.issubset(set(free_services))
     assert "basic" in free_tiers
     assert len(set(free_tiers["basic"]) & set(free_services)) >= len(expected)
@@ -112,7 +113,7 @@ def test_all_submitted_services_have_results(free_result):
 def test_analyze_services_match_tier_config(free_result, free_tiers):
     submitted = set(free_result.services_submitted)
     tier_services = set(free_tiers["basic"])
-    assert {"colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"}.issubset(submitted)
+    assert {"colors", "metadata", "nsfw2", "nudenet", "yolo_v8"}.issubset(submitted)
     assert submitted.issubset(tier_services)
 
 

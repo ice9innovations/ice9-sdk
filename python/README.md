@@ -57,6 +57,15 @@ The SDK accepts images from multiple sources:
 # Local file path
 result = client.analyze("photo.jpg")
 
+# In-memory JPEG, PNG, WebP, HEIC, and HEIF uploads are detected from their file signature.
+# A filename and matching media type may also be supplied explicitly.
+with open("photo.webp", "rb") as f:
+    result = client.analyze(
+        f,
+        filename="photo.webp",
+        media_type="image/webp",
+    )
+
 # URL (SDK downloads it for you)
 result = client.analyze("https://example.com/photo.jpg")
 

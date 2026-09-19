@@ -1,6 +1,6 @@
 {
   "name": "@ice9/sdk",
-  "version": "0.0.3",
+  "version": "0.0.6",
   "description": "Node.js SDK for the ice9 image analysis API",
   "license": "MIT",
   "homepage": "https://ice9.ai",
@@ -43,10 +43,10 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.9.0"
   },
   "dependencies": {
-    "sharp": "^0.34.2"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

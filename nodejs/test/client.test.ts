@@ -54,6 +54,69 @@ describe("Ice9 client", () => {
     expect(submittedTier).toBe("basic");
   });
 
+  test.each([
+    {
+      format: "JPEG",
+      bytes: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00]),
+      type: "image/jpeg",
+      filename: "photo.jpg",
+    },
+    {
+      format: "PNG",
+      bytes: MINIMAL_PNG,
+      type: "image/png",
+      filename: "photo.png",
+    },
+    {
+      format: "WebP",
+      bytes: Buffer.from("RIFF\x04\x00\x00\x00WEBP", "binary"),
+      type: "image/webp",
+      filename: "photo.webp",
+    },
+    {
+      format: "HEIC",
+      bytes: Buffer.from("000000186674797068656963000000006d696631", "hex"),
+      type: "image/heic",
+      filename: "photo.heic",
+    },
+    {
+      format: "HEIF",
+      bytes: Buffer.from("00000018667479706d696631000000006d736631", "hex"),
+      type: "image/heif",
+      filename: "photo.heif",
+    },
+  ])("uploads $format buffers with an accurate multipart type and filename", async ({ bytes, type, filename }) => {
+    let uploadedFile: File | null = null;
+    const client = new Ice9({
+      apiKey: "ice9_test",
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.endsWith("/analyze")) {
+          uploadedFile = (init?.body as FormData).get("file") as File;
+          return jsonResponse(ANALYZE_RESPONSE, { status: 202 });
+        }
+        return jsonResponse(STATUS_COMPLETE, { status: 200 });
+      },
+    });
+
+    await client.analyze(bytes, { filename: "photo.bin" });
+    expect(uploadedFile).toMatchObject({ type, name: filename });
+  });
+
+  test("validates an explicit media type against in-memory image bytes", async () => {
+    const client = new Ice9({ apiKey: "ice9_test" });
+    await expect(
+      client.analyze(MINIMAL_PNG, { mediaType: "image/jpeg" }),
+    ).rejects.toThrow("does not match the detected image/png image");
+  });
+
+  test("rejects unidentifiable in-memory image bytes", async () => {
+    const client = new Ice9({ apiKey: "ice9_test" });
+    await expect(client.analyze(Buffer.from("not an image"))).rejects.toThrow(
+      "Could not identify image bytes",
+    );
+  });
+
   test("raises rate limit errors with retry-after", async () => {
     const client = new Ice9({
       apiKey: "ice9_test",

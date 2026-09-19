@@ -32,9 +32,84 @@ export interface Ice9Options {
 export interface AnalyzeOptions {
   tier?: string;
   imageGroup?: string;
+  /** MIME type for in-memory image bytes. Validated against the file signature. */
+  mediaType?: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+  /** Multipart filename for in-memory image bytes. Its extension is normalized to the image type. */
+  filename?: string;
   timeout?: number;
   stream?: boolean;
   raiseOnPartial?: boolean;
+}
+
+type SupportedImage = {
+  mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/heif";
+  extension: ".jpg" | ".png" | ".webp" | ".heic" | ".heif";
+};
+
+function detectImage(bytes: Uint8Array): SupportedImage | undefined {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return { mediaType: "image/jpeg", extension: ".jpg" };
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+    bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) {
+    return { mediaType: "image/png", extension: ".png" };
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) {
+    return { mediaType: "image/webp", extension: ".webp" };
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70
+  ) {
+    const boxLength = Math.min(
+      bytes.length,
+      (bytes[0] * 0x1000000) + (bytes[1] * 0x10000) + (bytes[2] * 0x100) + bytes[3],
+    );
+    const brands = new Set<string>();
+    for (let offset = 8; offset + 3 < boxLength; offset += 4) {
+      if (offset === 12) continue; // minor_version is not a brand
+      brands.add(String.fromCharCode(...bytes.subarray(offset, offset + 4)));
+    }
+    if (["heic", "heix", "hevc", "hevx", "heim", "heis"].some((brand) => brands.has(brand))) {
+      return { mediaType: "image/heic", extension: ".heic" };
+    }
+    if (!["avif", "avis"].some((brand) => brands.has(brand)) && ["mif1", "msf1"].some((brand) => brands.has(brand))) {
+      return { mediaType: "image/heif", extension: ".heif" };
+    }
+  }
+  return undefined;
+}
+
+function multipartImage(
+  bytes: Uint8Array,
+  mediaType?: AnalyzeOptions["mediaType"],
+  filename?: string,
+) {
+  const detected = detectImage(bytes);
+  if (!detected) {
+    throw new ImageRejectedError(
+      "Could not identify image bytes. Supported in-memory formats are JPEG, PNG, WebP, HEIC, and HEIF.",
+    );
+  }
+  if (mediaType && mediaType !== detected.mediaType) {
+    throw new ImageRejectedError(
+      `The supplied mediaType ${mediaType} does not match the detected ${detected.mediaType} image.`,
+    );
+  }
+
+  const requestedName = basename(filename || "upload");
+  const stem = requestedName.replace(/\.[^./\\]+$/, "") || "upload";
+  return {
+    blob: new Blob([Buffer.from(bytes)], { type: detected.mediaType }),
+    filename: `${stem}${detected.extension}`,
+  };
 }
 
 function isUrl(value: string) {
@@ -162,14 +237,14 @@ export class Ice9 {
       const self = this;
       return {
         async *[Symbol.asyncIterator]() {
-          const imageId = await self.upload(image, options.tier ?? BASELINE_TIER, options.imageGroup ?? "api");
+          const imageId = await self.upload(image, options);
           yield* self.stream(imageId, timeoutMs, options.raiseOnPartial ?? true);
         },
       };
     }
 
     return (async () => {
-      const imageId = await this.upload(image, options.tier ?? BASELINE_TIER, options.imageGroup ?? "api");
+      const imageId = await this.upload(image, options);
       await this.poll(imageId, Date.now() + timeoutMs);
       const result = await this.getResult(imageId);
       return this.handlePartialResult(result, options.raiseOnPartial ?? true);
@@ -235,7 +310,9 @@ export class Ice9 {
     throw new Ice9Error(`Request to ${path} failed`) as never ?? lastNetworkError;
   }
 
-  private async upload(image: string | URL | Buffer | Uint8Array, tier: string, imageGroup: string) {
+  private async upload(image: string | URL | Buffer | Uint8Array, options: AnalyzeOptions) {
+    const tier = options.tier ?? BASELINE_TIER;
+    const imageGroup = options.imageGroup ?? "api";
     if (image instanceof URL || (typeof image === "string" && isUrl(image))) {
       return this.uploadFromUrl(String(image), tier, imageGroup);
     }
@@ -246,9 +323,11 @@ export class Ice9 {
 
     if (typeof image === "string") {
       const bytes = await readFile(image);
-      form.set("file", new Blob([bytes]), basename(image));
+      const file = multipartImage(bytes, undefined, basename(image));
+      form.set("file", file.blob, file.filename);
     } else {
-      form.set("file", new Blob([Buffer.from(image)]), "upload.jpg");
+      const file = multipartImage(Buffer.from(image), options.mediaType, options.filename);
+      form.set("file", file.blob, file.filename);
     }
 
     const response = await this.request("/analyze", { method: "POST", body: form }, false);
@@ -285,7 +364,7 @@ export class Ice9 {
     const form = new FormData();
     form.set("tier", tier);
     form.set("image_group", imageGroup);
-    form.set("file", new Blob([arrayBuffer]), filename.includes(".") ? filename : "download.jpg");
+    form.set("file", new Blob([arrayBuffer], { type: contentType }), filename.includes(".") ? filename : "download.jpg");
 
     const uploadResponse = await this.request("/analyze", { method: "POST", body: form }, false);
     const body = (await uploadResponse.json()) as { image_id: number };

@@ -11,7 +11,7 @@ from .exceptions import (
     PartialResultError,
 )
 
-__version__ = "0.0.22"
+__version__ = "0.0.23"
 
 __all__ = [
     "Ice9",

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.23] - 2026-09-19
+
+### Fixed
+- Detect JPEG, PNG, WebP, HEIC, and HEIF upload types from file signatures instead of
+  hard-coding multipart uploads as JPEG. In-memory uploads may specify
+  `media_type` and `filename`; mismatched or unidentified bytes fail clearly.
+
 ## [0.0.22] - 2026-08-19
 
 ### Fixed

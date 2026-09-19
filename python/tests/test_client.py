@@ -199,6 +199,39 @@ def test_analyze_accepts_file_object(png_bytes_io, respx_mock):
     assert result.image_id == 42
 
 
+@pytest.mark.parametrize(
+    ("image_bytes", "media_type", "filename"),
+    [
+        (b"\xff\xd8\xff\xe0\x00", "image/jpeg", "asset.jpg"),
+        (b"\x89PNG\r\n\x1a\nrest", "image/png", "asset.png"),
+        (b"RIFF\x04\x00\x00\x00WEBP", "image/webp", "asset.webp"),
+        (bytes.fromhex("000000186674797068656963000000006d696631"), "image/heic", "asset.heic"),
+        (bytes.fromhex("00000018667479706d696631000000006d736631"), "image/heif", "asset.heif"),
+    ],
+)
+def test_analyze_sets_accurate_multipart_metadata(
+    image_bytes, media_type, filename, respx_mock
+):
+    route = respx_mock.post(f"{BASE}/analyze").mock(
+        return_value=httpx.Response(202, json=ANALYZE_RESPONSE)
+    )
+    respx_mock.get(f"{BASE}/status/42").mock(
+        return_value=httpx.Response(200, json=STATUS_COMPLETE)
+    )
+    mock_final_result(respx_mock)
+
+    make_client().analyze(io.BytesIO(image_bytes), filename="asset.bin")
+
+    body = route.calls.last.request.content
+    assert f'filename="{filename}"'.encode() in body
+    assert f"Content-Type: {media_type}".encode() in body
+
+
+def test_analyze_rejects_unidentifiable_bytes():
+    with pytest.raises(ImageRejectedError, match="Could not identify image bytes"):
+        make_client().analyze(io.BytesIO(b"not an image"))
+
+
 def test_analyze_accepts_url(respx_mock):
     import base64
     from .conftest import MINIMAL_PNG

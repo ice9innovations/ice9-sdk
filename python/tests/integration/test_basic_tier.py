@@ -103,9 +103,9 @@ def test_all_submitted_services_have_results(basic_result):
 def test_analyze_services_match_tier_config(basic_result, basic_tiers):
     submitted = set(basic_result.services_submitted)
     tier_services = set(basic_tiers["basic"])
-    assert {"colors", "content_analysis", "metadata", "nsfw2", "nudenet", "yolo_v8"}.issubset(submitted)
+    assert {"colors", "metadata", "nsfw2", "nudenet", "yolo_v8"}.issubset(submitted)
     assert submitted.issubset(tier_services)
 
 
 def test_basic_submits_current_baseline_services(basic_result, basic_tiers):
-    assert set(basic_result.services_submitted) == set(basic_tiers["basic"])
+    assert set(basic_result.services_submitted) == set(basic_tiers["basic"]) - {"content_analysis"}
