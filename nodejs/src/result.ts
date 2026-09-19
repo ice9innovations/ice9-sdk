@@ -1,4 +1,4 @@
-import { censor, type CensorOptions } from "./censor.js";
+import { CENSOR_LABELS, censor, type CensorOptions } from "./censor.js";
 
 export interface BBox {
   x: number;
@@ -400,8 +400,9 @@ export class AnalysisResult {
     if (!this.nudenet) {
       return [];
     }
-    const labels =
-      options.labels instanceof Set ? options.labels : new Set(options.labels ?? []);
+    const labels = options.labels instanceof Set
+      ? options.labels
+      : new Set(options.labels ?? CENSOR_LABELS);
     return this.nudenet.flaggedPredictions({
       labels,
       minConfidence: options.minConfidence ?? 0.5,

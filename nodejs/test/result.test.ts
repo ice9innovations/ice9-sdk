@@ -72,6 +72,29 @@ describe("AnalysisResult", () => {
     );
   });
 
+  test("covered anatomy remains metadata and does not make isNsfw true", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    (status.service_results.nudenet as any).predictions = [
+      { label: "FEMALE_BREAST_COVERED", confidence: 0.99 },
+    ];
+    const result = AnalysisResult.fromStatus(status);
+
+    expect(result.nudenet?.predictions).toHaveLength(1);
+    expect(result.nsfwDetections()).toEqual([]);
+    expect(result.isNsfw).toBe(false);
+  });
+
+  test("exposed anatomy makes isNsfw true by default", () => {
+    const status = structuredClone(STATUS_COMPLETE);
+    (status.service_results.nudenet as any).predictions = [
+      { label: "FEMALE_BREAST_EXPOSED", confidence: 0.9 },
+    ];
+    const result = AnalysisResult.fromStatus(status);
+
+    expect(result.nsfwDetections()).toHaveLength(1);
+    expect(result.isNsfw).toBe(true);
+  });
+
   test("terminal failures preserve metadata", () => {
     const result = AnalysisResult.fromStatus(STATUS_COMPLETE_WITH_TERMINAL_FAILURE);
     expect((result as any).pose.error_message).toBe("worker returned terminal failure");
